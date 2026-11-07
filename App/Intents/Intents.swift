@@ -24,7 +24,7 @@ struct TranscribeAudioIntent: AppIntent {
     )
     static var openAppWhenRun = false
 
-    @Parameter(title: "Ses", supportedContentTypes: [.audio])
+    @Parameter(title: "Ses", supportedTypeIdentifiers: ["public.audio"])
     var audio: IntentFile
 
     @Parameter(title: "Panoya kopyala", default: true)

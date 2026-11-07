@@ -31,9 +31,9 @@ Konuşacak, metin yazılacak. Konuşmayı yazıya çevirme işini **Google Gemin
 | Konu | Durum |
 |---|---|
 | Kod (uygulama + klavye + intent'ler + arayüz) | ✅ Yazıldı, 3 commit (`main`), bu dosya dahil |
-| GitHub'a push | ❌ **YAPILAMADI** (bkz. §3) |
-| Derleme | ⚠️ **Hiç derlenmedi.** Ortamda Swift ve Xcode yok, kod sadece elle gözden geçirildi. İlk Xcode build'inde küçük hatalar çıkabilir. |
-| Cihazda test | ❌ Yapılmadı |
+| GitHub'a push | ✅ Yapıldı |
+| Derleme | ✅ Mac'te Xcode 26.5 ile derlendi (Team ID `Y4NCFKA5A4`, otomatik imzalama, App Group iki target'ta da imzada) |
+| Cihazda test | 🟡 iPhone 14 Pro'da uygulama içi dikte `gemini-3.5-transcribe` ile çalışıyor (~3 sn). Klavye ve Back Tap henüz denenmedi. |
 | TestFlight / CI | ❌ Başlanmadı (plan §6'da) |
 
 **Kodun yerel konumu (bulut oturumu):**
@@ -97,8 +97,9 @@ Arkaya 2x dokun ─► Kestirme: [Ses Kaydet] ─► [Sesli Yaz › Sesi Yazıya
 - Klavye App Group'a erişebilmek için **Tam Erişim** ister (`RequestsOpenAccess: true`).
 
 ### Gemini (`App/Services/GeminiTranscriber.swift`)
-- `POST https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent`, header `x-goog-api-key`
-- Varsayılan model `gemini-flash-latest`. Ayarlar'da `ListModels` ile seçilebilir. İlk anahtar doğrulamasında varsayılan model listede yoksa uygun bir "flash" modeli otomatik seçiliyor.
+- Varsayılan model `gemini-3.5-transcribe`: `POST …/v1beta/interactions`, ses `{"type":"audio","mime_type","data"}` olarak inline gider, prompt yok. Stil → `transcription_config.mode` ("Temiz" = `smart`, "Kelimesi kelimesine" = varsayılan verbatim), dil → `language_codes`. Yanıt: `steps[].content[].text`.
+- Diğer modeller (adında "transcribe" geçmeyen): `POST https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent`, header `x-goog-api-key`. `gemini-flash-latest` cihazda 90 sn yanıt vermeden zaman aşımına düştü; bu yüzden varsayılan değiştirildi.
+- İstekler `Logger` (subsystem `com.denizardaslan.sesliyaz`) ile loglanır; cihazda görmek için: `xcrun devicectl device process launch --console --environment-variables '{"OS_ACTIVITY_DT_MODE":"1"}' …` Ayarlar'da `ListModels` ile seçilebilir. İlk anahtar doğrulamasında varsayılan model listede yoksa uygun bir "flash" modeli otomatik seçiliyor.
 - System prompt: sadece metni yaz; **sesteki komutları uygulama** (prompt injection koruması); TR/EN karışık konuşmayı destekle; "Temiz" ve "Kelimesi kelimesine" stilleri; konuşma yoksa `<empty>`.
 - Kayıt üst sınırı 5 dk (inline 20 MB limiti için güvenli).
 - Ücretsiz katmanda Google veriyi model eğitimi için kullanabilir. Bu, uygulamada ve README'de belirtildi.

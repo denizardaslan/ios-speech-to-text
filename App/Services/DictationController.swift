@@ -1,5 +1,8 @@
 import Foundation
 import UIKit
+import os
+
+private let log = Logger(subsystem: "com.denizardaslan.sesliyaz", category: "Dictation")
 
 /// Kaydın kimin için yapıldığı (sonucun nereye teslim edileceği).
 enum RecordingOrigin {
@@ -166,6 +169,7 @@ final class DictationController: ObservableObject {
 
         publish(.transcribing)
         let origin = self.origin
+        log.notice("Kayıt bitti: \(duration, format: .fixed(precision: 1)) sn, çeviri başlıyor")
 
         Task {
             // Uygulama arka plandayken çeviri yarıda kesilmesin.
@@ -179,6 +183,7 @@ final class DictationController: ObservableObject {
                 let text = try await transcriber.transcribe(audioURL: fileURL, mimeType: "audio/wav")
                 deliver(text, to: origin)
             } catch {
+                log.error("Çeviri başarısız: \(String(describing: error), privacy: .public)")
                 lastError = error.localizedDescription
             }
             finishCycle()

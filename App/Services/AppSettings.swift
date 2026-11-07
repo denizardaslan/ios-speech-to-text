@@ -41,7 +41,7 @@ enum DictationLanguage: String, CaseIterable, Identifiable {
 final class AppSettings: ObservableObject {
     static let shared = AppSettings()
 
-    static let defaultModel = "gemini-flash-latest"
+    static let defaultModel = "gemini-3.5-transcribe"
     private static let apiKeyAccount = "gemini-api-key"
 
     private enum Keys {

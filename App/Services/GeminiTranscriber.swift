@@ -1,4 +1,7 @@
 import Foundation
+import os
+
+private let log = Logger(subsystem: "com.denizardaslan.sesliyaz", category: "Gemini")
 
 /// Ses → metin servisi. İleride cihaz içi bir model (WhisperKit vb.) eklemek için protokol.
 protocol Transcriber {
@@ -50,6 +53,9 @@ struct GeminiTranscriber: Transcriber {
         guard audio.count > 44 + 6_400 else { throw TranscriptionError.audioTooShort }
 
         let modelName = model.hasPrefix("models/") ? String(model.dropFirst(7)) : model
+        if Self.isTranscribeModel(modelName) {
+            return try await transcribeWithInteractions(audio: audio, mimeType: mimeType, modelName: modelName)
+        }
         guard let endpoint = URL(string: "\(Self.baseURL.absoluteString)/models/\(modelName):generateContent") else {
             throw TranscriptionError.server(0, "Geçersiz model adı: \(modelName)")
         }
@@ -71,8 +77,7 @@ struct GeminiTranscriber: Transcriber {
         ]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
-        try Self.throwIfError(data: data, response: response)
+        let data = try await send(request, label: "model=\(modelName) ses=\(audio.count) bayt")
 
         let decoded = try JSONDecoder().decode(GenerateResponse.self, from: data)
         let text = (decoded.candidates?.first?.content?.parts ?? [])
@@ -83,6 +88,81 @@ struct GeminiTranscriber: Transcriber {
 
         guard !text.isEmpty, text != "<empty>" else { throw TranscriptionError.emptyResult }
         return text
+    }
+
+    /// Gemini Transcribe modelleri (ör. gemini-3.5-transcribe) generateContent yerine Interactions API kullanır
+    /// ve prompt almaz; stil ve dil `transcription_config` ile verilir.
+    static func isTranscribeModel(_ name: String) -> Bool { name.contains("transcribe") }
+
+    private func transcribeWithInteractions(audio: Data, mimeType: String, modelName: String) async throws -> String {
+        var request = URLRequest(url: Self.baseURL.appendingPathComponent("interactions"))
+        request.httpMethod = "POST"
+        request.timeoutInterval = 90
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
+
+        var config: [String: Any] = [:]
+        // Varsayılan mod "verbatim"; "smart" dolgu seslerini ve tekrarları temizler, noktalama ekler.
+        if style == .clean { config["mode"] = "smart" }
+        switch language {
+        case .auto: break
+        case .turkish: config["language_codes"] = ["tr-TR"]
+        case .english: config["language_codes"] = ["en-US"]
+        }
+
+        var body: [String: Any] = [
+            "model": "models/\(modelName)",
+            "input": [[
+                "type": "audio",
+                "mime_type": mimeType,
+                "data": audio.base64EncodedString(),
+            ]],
+        ]
+        if !config.isEmpty { body["generation_config"] = ["transcription_config": config] }
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let data = try await send(request, label: "model=\(modelName) (interactions) ses=\(audio.count) bayt")
+
+        let decoded: InteractionResponse
+        do {
+            decoded = try JSONDecoder().decode(InteractionResponse.self, from: data)
+        } catch {
+            log.error("Beklenmeyen yanıt: \(String(data: data.prefix(1000), encoding: .utf8) ?? "", privacy: .public)")
+            throw TranscriptionError.badResponse
+        }
+        let text = (decoded.steps ?? [])
+            .filter { $0.type == nil || $0.type == "model_output" }
+            .flatMap { $0.content ?? [] }
+            .compactMap(\.text)
+            .joined()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !text.isEmpty else {
+            log.notice("Boş metin, durum=\(decoded.status ?? "-", privacy: .public)")
+            throw TranscriptionError.emptyResult
+        }
+        return text
+    }
+
+    /// İsteği gönderir, süreyi ve hataları loglar, HTTP hatalarını `TranscriptionError`'a çevirir.
+    private func send(_ request: URLRequest, label: String) async throws -> Data {
+        log.notice("İstek: \(label, privacy: .public)")
+        let started = Date()
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await URLSession.shared.data(for: request)
+        } catch {
+            log.error("Ağ hatası (\(Date().timeIntervalSince(started), format: .fixed(precision: 1)) sn): \(String(describing: error), privacy: .public)")
+            throw error
+        }
+        let status = (response as? HTTPURLResponse)?.statusCode ?? -1
+        log.notice("Yanıt: HTTP \(status) \(data.count) bayt, \(Date().timeIntervalSince(started), format: .fixed(precision: 1)) sn")
+        if !(200..<300).contains(status) {
+            log.error("Hata gövdesi: \(String(data: data.prefix(1000), encoding: .utf8) ?? "", privacy: .public)")
+        }
+        try Self.throwIfError(data: data, response: response)
+        return data
     }
 
     /// API anahtarını doğrular ve `generateContent` destekleyen Gemini modellerini listeler.
@@ -99,7 +179,7 @@ struct GeminiTranscriber: Transcriber {
         let decoded = try JSONDecoder().decode(ModelList.self, from: data)
         let excluded = ["embedding", "image", "tts", "live", "native-audio", "veo", "imagen", "robotics", "computer-use"]
         return (decoded.models ?? [])
-            .filter { ($0.supportedGenerationMethods ?? []).contains("generateContent") }
+            .filter { ($0.supportedGenerationMethods ?? []).contains("generateContent") || isTranscribeModel($0.name) }
             .map { $0.name.hasPrefix("models/") ? String($0.name.dropFirst(7)) : $0.name }
             .filter { name in name.contains("gemini") && !excluded.contains(where: { name.contains($0) }) }
             .sorted()
@@ -165,6 +245,13 @@ struct GeminiTranscriber: Transcriber {
         struct Content: Decodable { let parts: [Part]? }
         struct Part: Decodable { let text: String?; let thought: Bool? }
         let candidates: [Candidate]?
+    }
+
+    private struct InteractionResponse: Decodable {
+        struct Step: Decodable { let type: String?; let content: [Content]? }
+        struct Content: Decodable { let type: String?; let text: String? }
+        let status: String?
+        let steps: [Step]?
     }
 
     private struct ModelList: Decodable {

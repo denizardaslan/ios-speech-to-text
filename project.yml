@@ -16,7 +16,7 @@ options:
 
 settings:
   base:
-    DEVELOPMENT_TEAM: ""
+    DEVELOPMENT_TEAM: "Y4NCFKA5A4"
     BUNDLE_ID_PREFIX: com.denizardaslan
     APP_GROUP_ID: group.$(BUNDLE_ID_PREFIX).sesliyaz
     CODE_SIGN_STYLE: Automatic

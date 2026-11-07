@@ -42,7 +42,7 @@ struct SettingsView: View {
             } header: {
                 Text("Model")
             } footer: {
-                Text("\"flash\" modelleri hızlı ve ücretsiz katmanda cömert. \"\(AppSettings.defaultModel)\" her zaman en güncel Flash modelini kullanır.")
+                Text("\"\(AppSettings.defaultModel)\" konuşmayı yazıya çevirmek için özel bir model; stil ve dil ayarlarını doğrudan kullanır. \"flash\" modelleri genel amaçlıdır.")
             }
 
             Section("Yazım") {
