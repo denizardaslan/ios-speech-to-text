@@ -17,8 +17,8 @@ Konuşmayı Google **Gemini API** ile yazıya çevirir: noktalama ekler, "ıı, 
 Gerekenler: Xcode 16 veya üzeri, Apple Developer hesabı, iOS 17 veya üzeri bir iPhone.
 
 ```bash
-git clone https://github.com/denizardaslan/sesliyaz.git
-cd sesliyaz
+git clone https://github.com/denizardaslan/ios-speech-to-text.git
+cd ios-speech-to-text
 ./scripts/bootstrap.sh ABCDE12345     # kendi Team ID'n (Xcode › Settings › Accounts)
 ```
 
