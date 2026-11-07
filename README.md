@@ -56,7 +56,7 @@ Bu adımlar uygulamanın içindeki **Kurulum** bölümünde de anlatılıyor.
 │  ┌──────────────── SesliYaz (ana uygulama) ─────────────────┐      ││
 │  │ DictationController  ← oturum, kayıt, teslim             │◄─────┘│
 │  │ AudioRecorder        ← AVAudioEngine → 16 kHz mono WAV   │       │
-│  │ GeminiTranscriber    ← REST: interactions / generateContent│──────►│── HTTPS ─► Gemini API
+│  │ GeminiTranscriber    ← REST: interactions/generateContent  │──────►│── HTTPS ─► Gemini API
 │  │ AppSettings/Keychain ← API anahtarı, model, stil         │       │
 │  └──────────▲─────────────────────────────┬─────────────────┘       │
 │   Darwin    │ start/stop/cancel/ping      │ state.json / result.json │
