@@ -1,0 +1,16 @@
+# XcodeGen çıktıları (project.yml'den yeniden üretilir)
+*.xcodeproj
+*.xcworkspace
+App/Info.plist
+App/SesliYaz.entitlements
+Keyboard/Info.plist
+Keyboard/SesliYazKeyboard.entitlements
+
+# Xcode
+build/
+DerivedData/
+xcuserdata/
+*.xcuserstate
+
+# macOS
+.DS_Store
