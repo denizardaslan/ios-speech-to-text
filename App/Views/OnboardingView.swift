@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// İlk açılış: Gemini API anahtarını bir kere yapıştır, doğrula, kaydet.
+/// First launch: paste the Gemini API key once, validate it, save it.
 struct OnboardingView: View {
     @EnvironmentObject private var settings: AppSettings
 
@@ -12,20 +12,20 @@ struct OnboardingView: View {
                         Image(systemName: "waveform.circle.fill")
                             .font(.system(size: 56))
                             .foregroundStyle(.tint)
-                        Text("Sesli Yaz'a hoş geldin")
+                        Text("Welcome to Voice Type")
                             .font(.largeTitle.bold())
-                        Text("Konuş, metin olarak istediğin yere yazılsın. Başlamak için ücretsiz bir Google Gemini API anahtarı gerekiyor.")
+                        Text("Speak, and your words are typed wherever you want. To get started you need a free Google Gemini API key.")
                             .foregroundStyle(.secondary)
                     }
 
                     VStack(alignment: .leading, spacing: 12) {
-                        StepRow(number: 1, text: "Aşağıdaki bağlantıdan Google hesabınla Google AI Studio'ya gir.")
+                        StepRow(number: 1, text: "Sign in to Google AI Studio with your Google account using the link below.")
                         Link(destination: URL(string: "https://aistudio.google.com/apikey")!) {
                             Label("aistudio.google.com/apikey", systemImage: "arrow.up.right.square")
                         }
                         .padding(.leading, 36)
-                        StepRow(number: 2, text: "\"Create API key\" ile bir anahtar oluştur ve kopyala.")
-                        StepRow(number: 3, text: "Buraya yapıştır. Anahtar sadece bu telefonda, iOS Anahtar Zinciri'nde şifreli saklanır.")
+                        StepRow(number: 2, text: "Tap \"Create API key\" to create a key and copy it.")
+                        StepRow(number: 3, text: "Paste it here. The key is stored encrypted in the iOS Keychain, only on this phone.")
                     }
 
                     APIKeyForm()
@@ -52,7 +52,7 @@ struct StepRow: View {
     }
 }
 
-/// Anahtarı yapıştırma + doğrulama formu (ilk açılışta ve Ayarlar'da kullanılır).
+/// Form to paste and validate the key (used on first launch and in Settings).
 struct APIKeyForm: View {
     @EnvironmentObject private var settings: AppSettings
     @State private var draft = ""
@@ -78,7 +78,7 @@ struct APIKeyForm: View {
                 } label: {
                     Image(systemName: "doc.on.clipboard")
                 }
-                .accessibilityLabel("Panodan yapıştır")
+                .accessibilityLabel("Paste from clipboard")
             }
             .padding(12)
             .background(RoundedRectangle(cornerRadius: 12).fill(Color(.secondarySystemBackground)))
@@ -94,7 +94,7 @@ struct APIKeyForm: View {
             } label: {
                 HStack {
                     if isChecking { ProgressView().tint(.white) }
-                    Text(isChecking ? "Kontrol ediliyor…" : "Kaydet ve doğrula")
+                    Text(isChecking ? "Checking…" : "Save and Validate")
                         .bold()
                 }
                 .frame(maxWidth: .infinity)
@@ -112,7 +112,7 @@ struct APIKeyForm: View {
         defer { isChecking = false }
         do {
             let models = try await GeminiTranscriber.listModels(apiKey: key)
-            // Varsayılan model bu anahtarla kullanılamıyorsa en uygun "flash" modelini seç.
+            // If the default model is not available with this key, pick the best "flash" model.
             if !models.contains(settings.model),
                let flash = models.first(where: { $0 == AppSettings.defaultModel })
                 ?? models.last(where: { $0.contains("flash") && !$0.contains("lite") && !$0.contains("preview") }) {

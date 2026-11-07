@@ -7,27 +7,27 @@ enum RecorderError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .permissionDenied:
-            return "Mikrofon izni yok. Ayarlar › Sesli Yaz › Mikrofon'u aç."
+            return "No microphone permission. Turn it on in Settings › Voice Type › Microphone."
         case .noInput:
-            return "Mikrofon kullanılamıyor."
+            return "The microphone is unavailable."
         }
     }
 }
 
-/// AVAudioEngine tabanlı kaydedici.
+/// AVAudioEngine-based recorder.
 ///
-/// Motor (mikrofon) "oturum" boyunca açık kalır; böylece uygulama arka plandayken de
-/// çalışmaya devam eder ve klavyeden gelen komutla anında kayda başlanabilir.
-/// Sadece `beginFile()` ile `endFile()` arasındaki ses dosyaya yazılır.
-/// Çıktı: 16 kHz, mono, 16 bit WAV (konuşma için yeterli, dosya boyutu küçük).
+/// The engine (microphone) stays on for the whole "session", so it keeps running while the app
+/// is in the background and recording can start instantly on a command from the keyboard.
+/// Only the audio between `beginFile()` and `endFile()` is written to the file.
+/// Output: 16 kHz, mono, 16-bit WAV (enough for speech, small files).
 final class AudioRecorder {
     static let targetFormat = AVAudioFormat(
         commonFormat: .pcmFormatInt16, sampleRate: 16_000, channels: 1, interleaved: true
     )!
 
-    /// 0…1 arası ses seviyesi (ana thread'de çağrılır).
+    /// Audio level between 0…1 (called on the main thread).
     var onLevel: ((Float) -> Void)?
-    /// Motor beklenmedik şekilde durursa (telefon araması vb.) çağrılır.
+    /// Called if the engine stops unexpectedly (phone call etc.).
     var onUnexpectedStop: ((String) -> Void)?
 
     private(set) var isRunning = false
@@ -48,24 +48,24 @@ final class AudioRecorder {
                   let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
                   AVAudioSession.InterruptionType(rawValue: raw) == .began else { return }
             self.stopEngine()
-            self.onUnexpectedStop?("Ses oturumu kesildi (arama, Siri vb.).")
+            self.onUnexpectedStop?("The audio session was interrupted (call, Siri, etc.).")
         })
         observers.append(center.addObserver(
             forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main
         ) { [weak self] _ in
-            // Kulaklık takıldı/çıkarıldı: motoru yeni giriş formatıyla yeniden kur.
+            // Headphones plugged in/out: rebuild the engine with the new input format.
             guard let self, self.isRunning else { return }
             self.isRunning = false
             self.engine.inputNode.removeTap(onBus: 0)
             do { try self.startEngine() } catch {
-                self.onUnexpectedStop?("Mikrofon yeniden başlatılamadı: \(error.localizedDescription)")
+                self.onUnexpectedStop?("Could not restart the microphone: \(error.localizedDescription)")
             }
         })
     }
 
     deinit { observers.forEach { NotificationCenter.default.removeObserver($0) } }
 
-    // MARK: - İzin
+    // MARK: - Permission
 
     static func requestPermission() async -> Bool {
         switch AVAudioApplication.shared.recordPermission {
@@ -81,7 +81,7 @@ final class AudioRecorder {
         guard !isRunning else { return }
 
         let session = AVAudioSession.sharedInstance()
-        // mixWithOthers: arka planda çalan müziği/podcast'i durdurmaz.
+        // mixWithOthers: does not stop music/podcasts playing in the background.
         try session.setCategory(.playAndRecord, mode: .default,
                                 options: [.mixWithOthers, .defaultToSpeaker, .allowBluetoothA2DP])
         try session.setActive(true)
@@ -134,17 +134,17 @@ final class AudioRecorder {
         lock.unlock()
     }
 
-    /// Kaydı bitirir ve dosyanın adresini döner (dosya kapatılmış ve okunmaya hazırdır).
+    /// Ends the recording and returns the file URL (the file is closed and ready to read).
     func endFile() -> URL? {
         lock.lock()
         let url = fileURL
-        file = nil // AVAudioFile serbest bırakılınca WAV başlığı yazılıp dosya kapanır.
+        file = nil // Releasing the AVAudioFile writes the WAV header and closes the file.
         fileURL = nil
         lock.unlock()
         return url
     }
 
-    // MARK: - Ses işleme (ses thread'i)
+    // MARK: - Audio processing (audio thread)
 
     private func process(_ buffer: AVAudioPCMBuffer) {
         reportLevel(buffer)
@@ -186,7 +186,7 @@ final class AudioRecorder {
     }
 }
 
-/// Kestirmeden gelen herhangi bir ses dosyasını (m4a, caf, mp3…) 16 kHz mono WAV'a çevirir.
+/// Converts any audio file from a shortcut (m4a, caf, mp3…) to 16 kHz mono WAV.
 enum AudioFileConverter {
     static func convertToWav(_ source: URL) throws -> URL {
         let input = try AVAudioFile(forReading: source)

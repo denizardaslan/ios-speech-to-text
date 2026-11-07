@@ -6,7 +6,7 @@ final class KeyboardModel: ObservableObject {
     @Published var showsGlobeKey = true
     @Published var errorMessage: String?
     @Published var needsSessionHint = false
-    @Published var returnKeyTitle = "Satır"
+    @Published var returnKeyTitle = "return"
 
     var onMic: () -> Void = {}
     var onCancel: () -> Void = {}
@@ -41,7 +41,7 @@ struct KeyboardView: View {
         .frame(height: Self.height)
     }
 
-    // MARK: - Üst satır
+    // MARK: - Top bar
 
     private var topBar: some View {
         HStack(spacing: 8) {
@@ -55,14 +55,14 @@ struct KeyboardView: View {
                 .minimumScaleFactor(0.8)
             Spacer()
             if model.engineState == .recording {
-                Button("Vazgeç", action: model.onCancel)
+                Button("Cancel", action: model.onCancel)
                     .font(.footnote.bold())
             } else if model.engineState == .ready {
                 Button(action: model.onEndSession) {
                     Image(systemName: "power")
                 }
                 .font(.footnote.bold())
-                .accessibilityLabel("Oturumu kapat")
+                .accessibilityLabel("End session")
             }
         }
         .padding(.horizontal, 8)
@@ -71,16 +71,16 @@ struct KeyboardView: View {
 
     private var statusText: String {
         if let error = model.errorMessage { return error }
-        if model.needsSessionHint { return "Sesli Yaz açılıyor… Sonra sol üstteki ◀ ile geri dön." }
+        if model.needsSessionHint { return "Opening Voice Type… then come back with ◀ in the top-left." }
         switch model.engineState {
-        case .off: return "Dikte etmek için 🎤'a bas"
-        case .ready: return "Hazır: konuşmak için dokun"
-        case .recording: return "Dinliyorum… bitirmek için dokun"
-        case .transcribing: return "Yazıya çevriliyor…"
+        case .off: return "Tap 🎤 to dictate"
+        case .ready: return "Ready: tap to speak"
+        case .recording: return "Listening… tap to finish"
+        case .transcribing: return "Transcribing…"
         }
     }
 
-    // MARK: - Mikrofon
+    // MARK: - Microphone
 
     private var micArea: some View {
         Button(action: model.onMic) {
@@ -105,7 +105,7 @@ struct KeyboardView: View {
         }
         .buttonStyle(.plain)
         .disabled(model.engineState == .transcribing)
-        .accessibilityLabel(model.engineState == .recording ? "Kaydı bitir" : "Konuşmaya başla")
+        .accessibilityLabel(model.engineState == .recording ? "Stop recording" : "Start speaking")
     }
 
     private var micColor: Color {
@@ -120,9 +120,9 @@ struct KeyboardView: View {
         VStack(spacing: 6) {
             Image(systemName: "lock.open")
                 .font(.title2)
-            Text("Tam Erişim gerekli")
+            Text("Full Access required")
                 .font(.headline)
-            Text("Ayarlar › Genel › Klavye › Klavyeler › Sesli Yaz › Tam Erişime İzin Ver")
+            Text("Settings › General › Keyboard › Keyboards › Voice Type › Allow Full Access")
                 .font(.caption)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
@@ -130,7 +130,7 @@ struct KeyboardView: View {
         .padding(.horizontal)
     }
 
-    // MARK: - Alt satır
+    // MARK: - Bottom row
 
     private var bottomRow: some View {
         HStack(spacing: 6) {
@@ -138,7 +138,7 @@ struct KeyboardView: View {
                 KeyButton(systemImage: "globe", action: model.onNextKeyboard)
                     .frame(width: 44)
             }
-            KeyButton(title: "boşluk", isPrimary: true, action: model.onSpace)
+            KeyButton(title: "space", isPrimary: true, action: model.onSpace)
             RepeatingKeyButton(systemImage: "delete.left", action: model.onDelete)
                 .frame(width: 56)
             KeyButton(title: model.returnKeyTitle, action: model.onReturn)
@@ -148,7 +148,7 @@ struct KeyboardView: View {
     }
 }
 
-// MARK: - Tuşlar
+// MARK: - Keys
 
 private struct KeyBackground: View {
     var isPrimary: Bool = false
@@ -186,7 +186,7 @@ private struct KeyButton: View {
     }
 }
 
-/// Basılı tutunca tekrar eden tuş (sil).
+/// A key that repeats while held (delete).
 private struct RepeatingKeyButton: View {
     let systemImage: String
     let action: () -> Void
@@ -219,12 +219,12 @@ private struct RepeatingKeyButton: View {
                 }
         )
         .accessibilityAddTraits(.isButton)
-        .accessibilityLabel("Sil")
+        .accessibilityLabel("Delete")
         .accessibilityAction { action() }
     }
 }
 
-/// Kayıt sırasında mikrofonun etrafında nabız gibi atan halka.
+/// A ring that pulses around the mic while recording.
 private struct PulseRing: View {
     @State private var animate = false
 

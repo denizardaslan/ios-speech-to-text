@@ -1,4 +1,4 @@
-# XcodeGen çıktıları (project.yml'den yeniden üretilir)
+# XcodeGen output (regenerated from project.yml)
 *.xcodeproj
 *.xcworkspace
 App/Info.plist

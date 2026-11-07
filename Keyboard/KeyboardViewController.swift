@@ -1,24 +1,24 @@
 import SwiftUI
 import UIKit
 
-/// Sesli Yaz klavyesi.
+/// The Voice Type keyboard.
 ///
-/// Apple klavye eklentilerine mikrofon izni vermediği için kaydı ana uygulama yapar:
-///   - Klavye, Darwin bildirimleriyle uygulamaya "başla / bitir" der.
-///   - Uygulama metni App Group klasörüne yazar ve "sonuç hazır" der.
-///   - Klavye metni `textDocumentProxy.insertText` ile imlecin olduğu yere yazar.
-/// Uygulama ayakta değilse (oturum kapalı) klavye uygulamayı `sesliyaz://session` ile açar.
+/// Apple does not give keyboard extensions microphone access, so the main app does the recording:
+///   - The keyboard tells the app "start / stop" via Darwin notifications.
+///   - The app writes the text to the App Group folder and says "result ready".
+///   - The keyboard types the text at the cursor with `textDocumentProxy.insertText`.
+/// If the app is not running (no session), the keyboard opens it via `sesliyaz://session`.
 final class KeyboardViewController: UIInputViewController {
     private let model = KeyboardModel()
     private var tokens: [ObservationToken] = []
     private var hostingController: UIHostingController<KeyboardView>?
 
-    /// Gönderilen komuta uygulamadan yanıt gelmezse uygulamanın ayakta olmadığını anlarız.
+    /// If the app does not answer a command, we know it is not running.
     private var watchdog: DispatchWorkItem?
     private var pendingCommand: IPCMessage?
     private var pingWatchdog: DispatchWorkItem?
 
-    // MARK: - Yaşam döngüsü
+    // MARK: - Lifecycle
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -67,7 +67,7 @@ final class KeyboardViewController: UIInputViewController {
         model.returnKeyTitle = returnKeyTitle
     }
 
-    // MARK: - Eylemler
+    // MARK: - Actions
 
     private func bindActions() {
         model.onMic = { [weak self] in self?.micTapped() }
@@ -91,7 +91,7 @@ final class KeyboardViewController: UIInputViewController {
 
         switch model.engineState {
         case .off:
-            // Önce uygulamanın gerçekten kapalı olduğundan emin ol; değilse hemen başla.
+            // First make sure the app is really not running; if it is, start right away.
             send(.startRecording, openAppIfNoReply: true)
         case .ready:
             send(.startRecording, openAppIfNoReply: true)
@@ -102,7 +102,7 @@ final class KeyboardViewController: UIInputViewController {
         }
     }
 
-    /// Uygulamaya komut gönder. 0,6 sn içinde durum güncellemesi gelmezse uygulama ayakta değildir.
+    /// Sends a command to the app. If no state update arrives within 0.6 s, the app is not running.
     private func send(_ message: IPCMessage, openAppIfNoReply: Bool = false) {
         watchdog?.cancel()
         pendingCommand = message
@@ -126,7 +126,7 @@ final class KeyboardViewController: UIInputViewController {
         DarwinNotifier.shared.post(.ping)
     }
 
-    /// Uygulama bir durum bildirdi → ayakta. Durumu App Group'tan oku.
+    /// The app reported a state → it is running. Read the state from the App Group.
     private func appDidRespond() {
         watchdog?.cancel()
         pingWatchdog?.cancel()
@@ -136,7 +136,7 @@ final class KeyboardViewController: UIInputViewController {
 
         let command = pendingCommand
         pendingCommand = nil
-        // Uygulama ayakta ama oturum kapalı (ör. süre doldu): mikrofonu açmak için uygulamaya git.
+        // The app is running but the session is off (e.g. it timed out): go to the app to turn on the microphone.
         if command == .startRecording, snapshot.engineState == .off {
             openContainingApp()
         } else {
@@ -144,12 +144,12 @@ final class KeyboardViewController: UIInputViewController {
         }
     }
 
-    // MARK: - Sonucu yaz
+    // MARK: - Insert the result
 
     private func insertPendingResult() {
         guard hasFullAccess, let result = SharedStore.result else { return }
         guard result.id != SharedStore.consumedResultID else { return }
-        // Çok eski bir sonucu yanlış alana yazmayalım.
+        // Don't type a stale result into the wrong field.
         guard Date().timeIntervalSince(result.createdAt) < 120 else {
             SharedStore.consumedResultID = result.id
             return
@@ -165,10 +165,10 @@ final class KeyboardViewController: UIInputViewController {
         textDocumentProxy.insertText(text)
     }
 
-    // MARK: - Uygulamayı aç
+    // MARK: - Open the app
 
-    /// Klavye eklentileri `UIApplication.shared.open` kullanamaz. Responder zincirinde
-    /// UIApplication'ı bulup openURL'ü Objective-C çalışma zamanı üzerinden çağırıyoruz.
+    /// Keyboard extensions cannot use `UIApplication.shared.open`. We find UIApplication in the
+    /// responder chain and call openURL through the Objective-C runtime.
     private func openContainingApp() {
         model.needsSessionHint = true
         let url = AppConfig.sessionURL as NSURL
@@ -186,17 +186,17 @@ final class KeyboardViewController: UIInputViewController {
             }
             responder = current.next
         }
-        model.errorMessage = "Sesli Yaz uygulamasını açıp \"Klavye oturumu › Başlat\"a dokun."
+        model.errorMessage = "Open the Voice Type app and tap \"Keyboard Session › Start\"."
     }
 
     private var returnKeyTitle: String {
         switch textDocumentProxy.returnKeyType ?? .default {
-        case .send: return "Gönder"
-        case .search, .google, .yahoo: return "Ara"
-        case .go: return "Git"
-        case .done: return "Bitti"
-        case .next: return "Sonraki"
-        default: return "Satır"
+        case .send: return "send"
+        case .search, .google, .yahoo: return "search"
+        case .go: return "go"
+        case .done: return "done"
+        case .next: return "next"
+        default: return "return"
         }
     }
 }

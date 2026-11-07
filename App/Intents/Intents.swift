@@ -2,36 +2,36 @@ import AppIntents
 import UIKit
 import UniformTypeIdentifiers
 
-/// Kestirmeler uygulamasının göstereceği hatalar.
+/// Errors shown by the Shortcuts app.
 struct SesliYazIntentError: Error, CustomLocalizedStringResourceConvertible {
     let message: String
     var localizedStringResource: LocalizedStringResource { "\(message)" }
 }
 
-// MARK: - Arkaya dokunma için asıl eylem
+// MARK: - The main action for Back Tap
 
-/// Kestirmeler'deki "Ses Kaydet" eyleminin ürettiği dosyayı yazıya çevirir.
+/// Transcribes the file produced by the "Record Audio" action in Shortcuts.
 ///
-/// Önerilen kestirme (Arkaya Dokun'a bağlanır):
-///   1. Ses Kaydet  (Başlangıç: Hemen, Bitiş: Dokununca)
-///   2. Sesli Yaz › Sesi Yazıya Çevir  (Ses: Kaydedilen Ses)
-/// Uygulama açılmaz; metin panoya kopyalanır, uzun basıp "Yapıştır" demen yeterli.
+/// Suggested shortcut (bound to Back Tap):
+///   1. Record Audio  (Start: Immediately, Finish: On Tap)
+///   2. Voice Type › Transcribe Audio  (Audio: Recorded Audio)
+/// The app does not open; the text is copied to the clipboard, so just long-press and "Paste".
 struct TranscribeAudioIntent: AppIntent {
-    static var title: LocalizedStringResource = "Sesi Yazıya Çevir"
+    static var title: LocalizedStringResource = "Transcribe Audio"
     static var description = IntentDescription(
-        "Bir ses kaydını Gemini ile yazıya çevirir ve panoya kopyalar.",
-        categoryName: "Dikte"
+        "Transcribes an audio recording with Gemini and copies the text to the clipboard.",
+        categoryName: "Dictation"
     )
     static var openAppWhenRun = false
 
-    @Parameter(title: "Ses", supportedTypeIdentifiers: ["public.audio"])
+    @Parameter(title: "Audio", supportedTypeIdentifiers: ["public.audio"])
     var audio: IntentFile
 
-    @Parameter(title: "Panoya kopyala", default: true)
+    @Parameter(title: "Copy to Clipboard", default: true)
     var copyToClipboard: Bool
 
     static var parameterSummary: some ParameterSummary {
-        Summary("\(\.$audio) yazıya çevir") {
+        Summary("Transcribe \(\.$audio)") {
             \.$copyToClipboard
         }
     }
@@ -44,7 +44,7 @@ struct TranscribeAudioIntent: AppIntent {
             throw SesliYazIntentError(message: error.localizedDescription)
         }
 
-        // Kestirmeden gelen dosyayı geçici klasöre al ve 16 kHz WAV'a çevir.
+        // Copy the file from the shortcut to a temp folder and convert it to 16 kHz WAV.
         let ext = (audio.filename as NSString).pathExtension
         let rawURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("shortcut-\(UUID().uuidString).\(ext.isEmpty ? "m4a" : ext)")
@@ -59,7 +59,7 @@ struct TranscribeAudioIntent: AppIntent {
                 try audio.data.write(to: rawURL)
             }
         } catch {
-            throw SesliYazIntentError(message: "Ses dosyası okunamadı: \(error.localizedDescription)")
+            throw SesliYazIntentError(message: "Could not read the audio file: \(error.localizedDescription)")
         }
 
         let text: String
@@ -74,21 +74,21 @@ struct TranscribeAudioIntent: AppIntent {
         let shouldCopy = copyToClipboard
         await MainActor.run {
             if shouldCopy { UIPasteboard.general.string = text }
-            HistoryStore.shared.add(text, source: "Kestirme")
+            HistoryStore.shared.add(text, source: "Shortcut")
         }
         return .result(value: text)
     }
 }
 
-// MARK: - Uygulamayı açarak dikte
+// MARK: - Dictate by opening the app
 
-/// Uygulamayı açar ve hemen kayda başlar. Bitince metin panoya kopyalanır.
-/// "Ses Kaydet" eylemini kullanmak istemeyenler için alternatif.
+/// Opens the app and starts recording right away. The text is copied to the clipboard when done.
+/// An alternative for those who don't want to use the "Record Audio" action.
 struct DictateIntent: AppIntent {
-    static var title: LocalizedStringResource = "Dikte Et"
+    static var title: LocalizedStringResource = "Dictate"
     static var description = IntentDescription(
-        "Sesli Yaz'ı açar ve hemen dinlemeye başlar. Bitince metin panoya kopyalanır.",
-        categoryName: "Dikte"
+        "Opens Voice Type and starts listening right away. The text is copied to the clipboard when done.",
+        categoryName: "Dictation"
     )
     static var openAppWhenRun = true
 
@@ -99,13 +99,13 @@ struct DictateIntent: AppIntent {
     }
 }
 
-// MARK: - Klavye oturumunu başlat
+// MARK: - Start a keyboard session
 
 struct StartKeyboardSessionIntent: AppIntent {
-    static var title: LocalizedStringResource = "Klavye Oturumunu Başlat"
+    static var title: LocalizedStringResource = "Start Keyboard Session"
     static var description = IntentDescription(
-        "Mikrofonu arka planda hazır hale getirir; Sesli Yaz klavyesi anında dinleyebilir.",
-        categoryName: "Klavye"
+        "Gets the microphone ready in the background so the Voice Type keyboard can listen instantly.",
+        categoryName: "Keyboard"
     )
     static var openAppWhenRun = true
 
@@ -116,25 +116,25 @@ struct StartKeyboardSessionIntent: AppIntent {
     }
 }
 
-// MARK: - Siri / Spotlight kısayolları
+// MARK: - Siri / Spotlight shortcuts
 
 struct SesliYazShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(
             intent: DictateIntent(),
             phrases: [
-                "\(.applicationName) ile dikte et",
-                "\(.applicationName) dinle",
+                "Dictate with \(.applicationName)",
+                "Start \(.applicationName)",
             ],
-            shortTitle: "Dikte Et",
+            shortTitle: "Dictate",
             systemImageName: "mic.fill"
         )
         AppShortcut(
             intent: StartKeyboardSessionIntent(),
             phrases: [
-                "\(.applicationName) klavye oturumunu başlat",
+                "Start \(.applicationName) keyboard session",
             ],
-            shortTitle: "Klavye Oturumu",
+            shortTitle: "Keyboard Session",
             systemImageName: "keyboard"
         )
     }

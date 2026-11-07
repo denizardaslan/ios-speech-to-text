@@ -1,115 +1,121 @@
-# Sesli Yaz 🎙️
+# Voice Type 🎙️
 
-iPhone'da her uygulamada (WhatsApp, Mail, Notlar…) **konuşarak yazmak** için bir uygulama.
-Konuşmayı Google **Gemini API** ile yazıya çevirir: noktalama ekler, "ıı, eee"leri temizler, anlamı değiştirmez.
+An iPhone app for **typing by voice** in any app (WhatsApp, Mail, Notes…).
+It transcribes your speech with the Google **Gemini API**: adds punctuation, removes "um"s and "uh"s, and never changes the meaning.
 
-İki kullanım yolu var, o an hangisi kolayına gelirse:
+There are two ways to use it; pick whichever is handier at the moment:
 
-| Yol | Nasıl | Sonuç |
+| Route | How | Result |
 |---|---|---|
-| **Klavye** | Sesli Yaz klavyesine geç → 🎤 → konuş → 🎤 | Metin **imlecin olduğu yere yazılır** |
-| **Arkaya dokunma** | Telefonun arkasına 2 kez dokun → konuş → dokun | Metin **panoya kopyalanır** → yapıştır |
+| **Keyboard** | Switch to the Voice Type keyboard → 🎤 → speak → 🎤 | Text is **typed at the cursor** |
+| **Back Tap** | Double-tap the back of the phone → speak → tap | Text is **copied to the clipboard** → paste |
 
 ---
 
-## Mac'te kurulum
+## Setup on a Mac
 
-Gerekenler: Xcode 16 veya üzeri, Apple Developer hesabı, iOS 17 veya üzeri bir iPhone.
+Requirements: Xcode 16 or later, an Apple Developer account, an iPhone on iOS 17 or later.
 
 ```bash
 git clone https://github.com/denizardaslan/ios-speech-to-text.git
 cd ios-speech-to-text
-./scripts/bootstrap.sh ABCDE12345     # kendi Team ID'n (Xcode › Settings › Accounts)
+./scripts/bootstrap.sh ABCDE12345     # your Team ID (Xcode › Settings › Accounts)
 ```
 
-Betik [XcodeGen](https://github.com/yonaskolb/XcodeGen)'i kurar (`brew install xcodegen`), `project.yml`'den `SesliYaz.xcodeproj`'u üretir ve Xcode'da açar.
-> `.xcodeproj` repoda tutulmuyor. `project.yml` veya dosya yapısı değişince `xcodegen generate` komutunu tekrar çalıştır.
+The script installs [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`), generates `SesliYaz.xcodeproj` from `project.yml`, and opens it in Xcode.
+> The `.xcodeproj` is not checked in. Run `xcodegen generate` again whenever `project.yml` or the file layout changes.
 
-Xcode'da:
-1. Üstten şemayı **SesliYaz** ve hedefi kendi iPhone'un olarak seç, ▶︎ ile çalıştır.
-2. İmzalama hatası alırsan iki target'ta da (*SesliYaz*, *SesliYazKeyboard*) **Signing & Capabilities › Team** alanını seç.
-   App Group (`group.com.denizardaslan.sesliyaz`) otomatik imzalamayla kendiliğinden oluşturulur.
-3. Bundle ID'yi değiştirmek istersen `project.yml` içindeki `BUNDLE_ID_PREFIX` alanını değiştir. App Group da ona göre değişir.
+In Xcode:
+1. Pick the **SesliYaz** scheme and your iPhone as the destination, then run with ▶︎.
+2. If you get a signing error, set **Signing & Capabilities › Team** on both targets (*SesliYaz*, *SesliYazKeyboard*).
+   The App Group (`group.com.denizardaslan.sesliyaz`) is created automatically by automatic signing.
+3. To use a different bundle ID, change `BUNDLE_ID_PREFIX` in `project.yml`. The App Group follows it.
 
-## Telefonda ilk kurulum
+> The internal target, bundle ID, URL scheme and App Group still use the original name `SesliYaz` / `sesliyaz`. The name shown to users is `APP_DISPLAY_NAME` in `project.yml`.
 
-1. **API anahtarı:** Uygulamayı aç. [aistudio.google.com/apikey](https://aistudio.google.com/apikey) adresinden ücretsiz anahtar al, yapıştır, "Kaydet ve doğrula"ya bas. Bunu bir kere yapman yeterli.
-2. **Klavye:** Ayarlar › Genel › Klavye › Klavyeler › Yeni Klavye Ekle › *Sesli Yaz* → üstüne dokun → **Tam Erişime İzin Ver**.
-3. **Arkaya dokunma:**
-   - Kestirmeler uygulamasında yeni bir kestirme oluştur:
-     1. **Ses Kaydet** (Kaydı Başlat: *Hemen*, Bitir: *Dokununca*)
-     2. **Sesli Yaz › Sesi Yazıya Çevir** (Ses: *Kaydedilen Ses*)
-     3. *(isteğe bağlı)* **Bildirim Göster** → *Yazıya Çevrilen Metin*
-   - Ayarlar › Erişilebilirlik › Dokunma › **Arkaya Dokun** › İki Kez Dokun › bu kestirme.
+## First run on the phone
 
-Bu adımlar uygulamanın içindeki **Kurulum** bölümünde de anlatılıyor.
+1. **API key:** Open the app. Get a free key at [aistudio.google.com/apikey](https://aistudio.google.com/apikey), paste it, and tap "Save and Validate". You only need to do this once.
+2. **Keyboard:** Settings › General › Keyboard › Keyboards › Add New Keyboard › *Voice Type* → tap it → **Allow Full Access**.
+3. **Back Tap:**
+   - In the Shortcuts app, create a new shortcut:
+     1. **Record Audio** (Start Recording: *Immediately*, Finish Recording: *On Tap*)
+     2. **Voice Type › Transcribe Audio** (Audio: *Recorded Audio*)
+     3. *(optional)* **Show Notification** → *Transcribed Text*
+   - Settings › Accessibility › Touch › **Back Tap** › Double Tap › this shortcut.
+
+These steps are also explained in the app's **Setup** section.
 
 ---
 
-## Mimari
+## Architecture
 
 ```
 ┌────────────────────────────── iPhone ──────────────────────────────┐
 │                                                                    │
-│  Arkaya 2x dokun ─► Kestirme: [Ses Kaydet] ─► [Sesi Yazıya Çevir] ──┐│
-│                                                (App Intent)        ││
-│  ┌──────────────── SesliYaz (ana uygulama) ─────────────────┐      ││
-│  │ DictationController  ← oturum, kayıt, teslim             │◄─────┘│
+│  Double back tap ─► Shortcut: [Record Audio] ─► [Transcribe Audio]─┐│
+│                                                  (App Intent)      ││
+│  ┌──────────────── SesliYaz (main app) ─────────────────────┐      ││
+│  │ DictationController  ← session, recording, delivery      │◄─────┘│
 │  │ AudioRecorder        ← AVAudioEngine → 16 kHz mono WAV   │       │
 │  │ GeminiTranscriber    ← REST: interactions/generateContent│──────►│── HTTPS ─► Gemini API
-│  │ AppSettings/Keychain ← API anahtarı, model, stil         │       │
+│  │ AppSettings/Keychain ← API key, model, style             │       │
 │  └──────────▲─────────────────────────────┬─────────────────┘       │
 │   Darwin    │ start/stop/cancel/ping      │ state.json / result.json │
-│ bildirimleri│                             ▼ (App Group klasörü)      │
-│  ┌──────────┴─────── SesliYazKeyboard (klavye eklentisi) ──┐        │
-│  │ 🎤 → komut gönder   ·   sonuç gelince insertText()       │        │
+│ notifications                             ▼ (App Group folder)       │
+│  ┌──────────┴─────── SesliYazKeyboard (keyboard extension) ┐        │
+│  │ 🎤 → send command   ·   insertText() when result arrives │        │
 │  └──────────────────────────────────────────────────────────┘        │
 └────────────────────────────────────────────────────────────────────┘
 ```
 
-### Klavye neden kaydı kendisi yapmıyor?
-Apple, klavye eklentilerinin mikrofonu kullanmasına **izin vermiyor**. Bu yüzden:
+### Why doesn't the keyboard record by itself?
+Apple **does not allow** keyboard extensions to use the microphone. So:
 
-1. 🎤'a ilk basışında klavye `sesliyaz://session` adresiyle ana uygulamayı açar.
-2. Uygulama mikrofonu açar (`UIBackgroundModes: audio`), böylece arka planda çalışmaya devam eder. Sen sol üstteki **◀** ile geri dönersin.
-3. Bundan sonra 🎤 basışları Darwin bildirimiyle uygulamaya gider. Uygulama kaydeder, Gemini'ye yollar ve sonucu App Group klasörüne yazar. Klavye metni `textDocumentProxy.insertText` ile imlece yazar.
-4. Oturum, ayarlardaki süre boyunca (varsayılan 5 dk) kullanılmazsa mikrofon kapanır.
+1. On the first 🎤 tap, the keyboard opens the main app via `sesliyaz://session`.
+2. The app turns on the microphone (`UIBackgroundModes: audio`) so it keeps running in the background. You go back with **◀** in the top-left.
+3. From then on, 🎤 taps reach the app via Darwin notifications. The app records, sends the audio to Gemini, and writes the result to the App Group folder. The keyboard types it at the cursor with `textDocumentProxy.insertText`.
+4. If the session goes unused for the time set in Settings (5 min by default), the microphone turns off.
 
-Oturum açıkken ekranın üstündeki **turuncu nokta** mikrofonun açık olduğunu gösterir. Ses sadece 🎤 ile bitiş arasında dosyaya yazılır ve gönderilir; geri kalanı hiçbir yere kaydedilmez.
+While a session is on, the **orange dot** at the top of the screen shows the microphone is on. Audio is only written to a file and sent between 🎤 and stop; nothing else is stored anywhere.
 
-### Arkaya dokunma neden panoya kopyalıyor?
-iOS, bir uygulamanın başka bir uygulamanın yazı alanına doğrudan yazmasına izin vermez. Doğrudan yazmayı sadece klavye yapabilir.
+### Why does Back Tap copy to the clipboard?
+iOS does not let an app type directly into another app's text field. Only a keyboard can do that.
 
-### Dosyalar
+### Transcription
+- Default model: `gemini-3.5-transcribe`, a dedicated speech-to-text model on the Interactions API (`POST /v1beta/interactions`). Style maps to `transcription_config.mode` ("Clean" = `smart`, "Verbatim" = default) and language to `language_codes`.
+- Other Gemini models can be picked in Settings; they use `generateContent` with a system prompt.
+
+### Files
 
 ```
-project.yml                       XcodeGen proje tanımı (target'lar, izinler, Info.plist)
-Shared/                           Uygulama + klavye ortak kodu
-  AppConfig.swift                 App Group, URL şeması
-  IPC.swift                       Darwin bildirimleri (süreçler arası sinyal)
-  SharedStore.swift               App Group'taki JSON durum/sonuç dosyaları
+project.yml                       XcodeGen project definition (targets, permissions, Info.plist)
+Shared/                           Code shared by the app and the keyboard
+  AppConfig.swift                 App Group, URL scheme
+  IPC.swift                       Darwin notifications (cross-process signals)
+  SharedStore.swift               JSON state/result files in the App Group
 App/
-  SesliYazApp.swift               Giriş noktası, sesliyaz://session yakalama
-  Audio/AudioRecorder.swift       AVAudioEngine kaydı + dosya dönüştürücü
-  Services/DictationController    Oturum/kayıt/çeviri durum makinesi
-  Services/GeminiTranscriber      Gemini REST istemcisi + prompt
-  Services/AppSettings, Keychain  Ayarlar ve API anahtarı
-  Intents/Intents.swift           Kestirme eylemleri (App Intents)
-  Views/                          SwiftUI ekranları
+  SesliYazApp.swift               Entry point, handles sesliyaz://session
+  Audio/AudioRecorder.swift       AVAudioEngine recording + file converter
+  Services/DictationController    Session/recording/transcription state machine
+  Services/GeminiTranscriber      Gemini REST client + prompt
+  Services/AppSettings, Keychain  Settings and API key
+  Intents/Intents.swift           Shortcut actions (App Intents)
+  Views/                          SwiftUI screens
 Keyboard/
-  KeyboardViewController.swift    Klavye ↔ uygulama iletişimi, metin ekleme
-  KeyboardView.swift              Klavye arayüzü (SwiftUI)
+  KeyboardViewController.swift    Keyboard ↔ app communication, text insertion
+  KeyboardView.swift              Keyboard UI (SwiftUI)
 ```
 
-## Gizlilik
-- API anahtarı sadece cihazdaki **Keychain**'de tutulur.
-- Ses, **doğrudan** Google'a gider; arada sunucu yok.
-- ⚠️ Gemini'nin **ücretsiz katmanında** Google, gönderilen içeriği ürünlerini geliştirmek için kullanabilir. Hassas içerik için ücretli katmanı (faturalandırma açık proje) düşünebilirsin.
-- Klavye hiçbir tuş vuruşunu kaydetmez. "Tam Erişim" sadece uygulamayla haberleşmek için gerekli.
+## Privacy
+- The API key is stored only in the device **Keychain**.
+- Audio goes **directly** to Google; there is no server in between.
+- ⚠️ On Gemini's **free tier**, Google may use submitted content to improve its products. For sensitive content, consider the paid tier (a project with billing enabled).
+- The keyboard never records keystrokes. "Full Access" is only needed to talk to the app.
 
-## Bilinen sınırlar / yol haritası
-- [ ] Cihaz içi (çevrimdışı) model seçeneği (WhisperKit / Apple SpeechAnalyzer)
-- [ ] Özel kelime listesi (isimler, terimler) → prompt'a eklenir
-- [ ] Ton seçenekleri ("resmi e-posta", "kısa mesaj")
-- [ ] Kayıt sırasında canlı ön izleme (streaming)
-- Klavyenin uygulamayı açması için kullanılan yöntem (responder zinciri) Apple'ın resmi API'si değil. Kişisel kullanımda sorun yok, ama App Store incelemesinde sorun çıkarabilir.
+## Known limitations / roadmap
+- [ ] On-device (offline) model option (WhisperKit / Apple SpeechAnalyzer)
+- [ ] Custom vocabulary (names, terms) → `custom_vocabulary` for the Transcribe model
+- [ ] Tone options ("formal email", "short message")
+- [ ] Live preview while recording (streaming)
+- The way the keyboard opens the app (responder chain) is not an official Apple API. Fine for personal use, but it may cause trouble in App Store review.

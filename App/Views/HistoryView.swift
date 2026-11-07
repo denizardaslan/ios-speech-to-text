@@ -13,17 +13,17 @@ struct HistoryView: View {
         }
         .overlay {
             if history.items.isEmpty {
-                ContentUnavailableView("Henüz kayıt yok", systemImage: "text.bubble")
+                ContentUnavailableView("No transcriptions yet", systemImage: "text.bubble")
             }
         }
-        .navigationTitle("Geçmiş")
+        .navigationTitle("History")
         .toolbar {
             if !history.items.isEmpty {
-                Button("Temizle", role: .destructive) { confirmClear = true }
+                Button("Clear", role: .destructive) { confirmClear = true }
             }
         }
-        .confirmationDialog("Tüm geçmiş silinsin mi?", isPresented: $confirmClear, titleVisibility: .visible) {
-            Button("Sil", role: .destructive) { history.clear() }
+        .confirmationDialog("Delete all history?", isPresented: $confirmClear, titleVisibility: .visible) {
+            Button("Delete", role: .destructive) { history.clear() }
         }
     }
 }
@@ -48,7 +48,7 @@ struct HistoryRow: View {
                     Text(item.date, style: .relative)
                     Spacer()
                     if copied {
-                        Label("Kopyalandı", systemImage: "checkmark")
+                        Label("Copied", systemImage: "checkmark")
                             .foregroundStyle(.green)
                     }
                 }
@@ -57,7 +57,7 @@ struct HistoryRow: View {
             }
         }
         .contextMenu {
-            Button("Kopyala", systemImage: "doc.on.doc") { UIPasteboard.general.string = item.text }
+            Button("Copy", systemImage: "doc.on.doc") { UIPasteboard.general.string = item.text }
             ShareLink(item: item.text)
         }
     }

@@ -1,182 +1,164 @@
-# HANDOFF — Sesli Yaz (ios-speech-to-text)
+# HANDOFF — Voice Type (ios-speech-to-text)
 
-Bu dosya, projeyi devralacak bir sonraki agent/geliştirici içindir.
-Son güncelleme: 2026-11-07
+This file is for the next agent/developer picking up the project.
+Last updated: 2026-11-08
 
 ---
 
-## 1. Ne yapıyoruz?
+## 1. What are we building?
 
-Kullanıcı (Deniz, GitHub: `denizardaslan`), ChatGPT'nin sesli modundaki kaliteyi WhatsApp gibi her uygulamada istiyor.
-Konuşacak, metin yazılacak. Konuşmayı yazıya çevirme işini **Google Gemini API** yapıyor (ücretsiz API anahtarı ile).
+The user (Deniz, GitHub: `denizardaslan`) wants ChatGPT voice-mode quality dictation in every app, such as WhatsApp.
+They speak, and text gets typed. Transcription is done by the **Google Gemini API** (with a free API key).
 
-İki kullanım yolu var, ikisi de kalacak. Kullanıcı o an hangisi kolayına gelirse onu kullanacak:
+There are two routes, and both stay. The user picks whichever is handier at the moment:
 
-| Yol | Akış | Sonuç |
+| Route | Flow | Result |
 |---|---|---|
-| **Klavye eklentisi** | Sesli Yaz klavyesi → 🎤 → konuş → 🎤 | Metin `textDocumentProxy.insertText` ile **imlece yazılır** |
-| **Arkaya Dokun (Back Tap)** | 2x dokun → Kestirme: *Ses Kaydet* → *Sesi Yazıya Çevir* (App Intent) | Metin **panoya kopyalanır**, kullanıcı yapıştırır |
+| **Keyboard extension** | Voice Type keyboard → 🎤 → speak → 🎤 | Text is **typed at the cursor** via `textDocumentProxy.insertText` |
+| **Back Tap** | Double tap → Shortcut: *Record Audio* → *Transcribe Audio* (App Intent) | Text is **copied to the clipboard**; the user pastes |
 
-**Kullanıcı tercihleri ve kararlar:**
-- API anahtarını uygulama ilk açılışta istiyor; kullanıcı bir kere yapıştırıyor, anahtar Keychain'e kaydediliyor. Herkes kendi anahtarını girdiği için başkaları da kullanabilir. Arada sunucu yok.
-- Kullanıcının Apple Developer hesabı var.
-- Geliştirme bulutta (Linux, Claude Code) yapılıyor, build Mac'te Xcode ile alınıyor.
-- **Hedef:** Her şeyi telefondan (Claude Code) yönetmek ve TestFlight ile telefona almak (bkz. §6).
-- Kullanıcıyla Türkçe konuşulur; uygulama arayüzü ve yorumlar Türkçe.
+**User preferences and decisions:**
+- The app asks for the API key on first launch; the user pastes it once and it is saved in the Keychain. Everyone enters their own key, so others can use the app too. No server in between.
+- The user has an Apple Developer account (Team ID `Y4NCFKA5A4`).
+- **The app is in English**: UI, comments, docs. The user-facing name is **Voice Type** (`APP_DISPLAY_NAME` in `project.yml`). Internal identifiers keep the original name `SesliYaz` / `sesliyaz` (targets, bundle IDs, URL scheme, App Group, Keychain service) so the installed app updates in place and the saved key survives. Don't rename them without asking.
+- The user chats in Turkish.
+- **Goal:** manage everything from the phone (Claude Code) and ship to the phone via TestFlight (see §5).
 
 ---
 
-## 2. Mevcut durum
+## 2. Current status
 
-| Konu | Durum |
+| Item | Status |
 |---|---|
-| Kod (uygulama + klavye + intent'ler + arayüz) | ✅ Yazıldı, 3 commit (`main`), bu dosya dahil |
-| GitHub'a push | ✅ Yapıldı |
-| Derleme | ✅ Mac'te Xcode 26.5 ile derlendi (Team ID `Y4NCFKA5A4`, otomatik imzalama, App Group iki target'ta da imzada) |
-| Cihazda test | 🟡 iPhone 14 Pro'da uygulama içi dikte `gemini-3.5-transcribe` ile çalışıyor (~3 sn). Klavye ve Back Tap henüz denenmedi. |
-| TestFlight / CI | ❌ Başlanmadı (plan §6'da) |
+| Code (app + keyboard + intents + UI) | ✅ On `main`, pushed to GitHub |
+| Build | ✅ Builds on the Mac with Xcode 26.5 (automatic signing, App Group present in both targets' signatures) |
+| On-device test | 🟡 iPhone 14 Pro: in-app dictation works with `gemini-3.5-transcribe` (~3 s). Keyboard and Back Tap not tested yet. |
+| TestFlight / CI | ❌ Not started (plan in §5) |
 
-**Kodun yerel konumu (bulut oturumu):**
-- `/home/deniz/projects/ios-speech-to-text`: GitHub remote'u ayarlı klon, commit'ler burada
-- `/home/deniz/projects/sesliyaz`: ilk çalışma kopyası (aynı commit'ler)
-
-Bulut container'ı geçici. Push yapılmadan oturum kapanırsa kod kaybolur. **İlk iş push.**
-
----
-
-## 3. Engel: GitHub push
-
-- Repo: `https://github.com/denizardaslan/ios-speech-to-text` (kullanıcı oluşturdu, **şu an boş**).
-- `add_repo` (access: push) başarılı oldu, `git clone` çalıştı.
-- `git push -u origin main` → `fatal: could not read Username for 'https://github.com'`.
-- Credential/proxy yapılandırmasını incelemek auto-mode tarafından engellendi. Bu kurcalanmamalı.
-- `SendUserFile` ile git bundle göndermek de başarısız oldu ("session is not on a project thread").
-
-**Muhtemel çözüm (kullanıcı tarafında):** GitHub → Settings → Applications → Installed GitHub Apps → **Claude** → Configure → Repository access → `ios-speech-to-text` ekle (veya All repositories). Gerekirse claude.ai → Settings → Connectors'tan GitHub bağlantısını yenile. Sonra push'u tekrar dene.
-
-**Bulut oturumu yoksa / kod kaybolduysa:** Bu dosya ve README mimariyi tam anlatıyor, ama asıl kaynak commit'lerdir. Kod kaybolmuşsa §4'teki dosya listesine göre yeniden yazılmalı.
-
-Kullanıcı Mac'te clone yapmak üzereydi. Push yapılana kadar repo boş, bu yüzden clone boş gelir. Kullanıcıya bu söylendi.
+Build and install from the Mac:
+```bash
+xcodegen generate
+xcodebuild -project SesliYaz.xcodeproj -scheme SesliYaz -destination 'generic/platform=iOS' \
+  -configuration Debug -derivedDataPath build -allowProvisioningUpdates build
+xcrun devicectl list devices
+xcrun devicectl device install app --device <ID> build/Build/Products/Debug-iphoneos/SesliYaz.app
+```
+The phone must be connected and unlocked, otherwise it shows as `unavailable`.
 
 ---
 
-## 4. Mimari
+## 3. Architecture
 
 ```
-Arkaya 2x dokun ─► Kestirme: [Ses Kaydet] ─► [Sesli Yaz › Sesi Yazıya Çevir]  (App Intent, uygulama açılmaz)
+Double back tap ─► Shortcut: [Record Audio] ─► [Voice Type › Transcribe Audio]  (App Intent, app does not open)
                                                          │
-┌──────────── SesliYaz (ana uygulama, SwiftUI) ──────────▼─────────┐
-│ DictationController  oturum / kayıt / çeviri / teslim (MainActor) │
-│ AudioRecorder        AVAudioEngine → 16 kHz mono Int16 WAV        │
-│ GeminiTranscriber    REST generateContent, inlineData base64      │──► Gemini API
-│ AppSettings          model/stil/dil (UserDefaults), anahtar Keychain│
-└──────▲──────────────────────────────────────┬───────────────────┘
-       │ Darwin bildirimleri                   │ App Group klasörü:
-       │ (ping/start/stop/cancel/endSession)   │ state.json, result.json, consumed.json
-┌──────┴──────── SesliYazKeyboard (klavye eklentisi) ▼─────────────┐
-│ 🎤 → komut gönder (0,6 sn watchdog) · resultReady → insertText    │
+┌──────────── SesliYaz (main app, SwiftUI) ──────────────▼─────────┐
+│ DictationController  session/recording/transcription (MainActor) │
+│ AudioRecorder        AVAudioEngine → 16 kHz mono Int16 WAV       │
+│ GeminiTranscriber    REST interactions / generateContent, base64 │──► Gemini API
+│ AppSettings          model/style/language; API key in Keychain   │
+└──────▲──────────────────────────────────────┬────────────────────┘
+       │ Darwin notifications                 │ App Group folder:
+       │ (ping/start/stop/cancel/endSession)  │ state.json, result.json, consumed.json
+┌──────┴──────── SesliYazKeyboard (keyboard extension) ▼───────────┐
+│ 🎤 → send command (0.6 s watchdog) · resultReady → insertText     │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
-### Önemli iOS kısıtları ve çözümleri
-1. **Klavye eklentisi mikrofon kullanamaz** (Apple kuralı). Çözüm: Wispr Flow modeli.
-   - Klavye, uygulamayı `sesliyaz://session` ile açar. Extension'da `UIApplication.shared` yok; responder zincirinde `UIApplication` bulunup `openURL:options:completionHandler:` ObjC runtime ile çağrılıyor (`KeyboardViewController.openContainingApp`). Resmi API değil, **App Store review riski var**; kişisel kullanımda sorun yok.
-   - Uygulama `AVAudioEngine`'i başlatır, `UIBackgroundModes: audio` sayesinde arka planda canlı kalır (turuncu mikrofon noktası görünür). Kullanıcı ◀ breadcrumb ile geri döner.
-   - Sonraki 🎤 basışları Darwin bildirimiyle uygulamaya gider; uygulama sadece start–stop arasında dosyaya yazar.
-   - Boşta kalma süresi (varsayılan 5 dk, ayarlanabilir) dolunca oturum kapanır.
-2. **Başka uygulamanın yazı alanına doğrudan yazılamaz** → Back Tap yolu panoya kopyalar.
-3. **Uygulama arka plandan mikrofon başlatamaz** → klavye komutları sadece `sessionActive` iken kabul edilir. Değilse uygulama `.off` yayınlar, klavye uygulamayı açar.
-4. Kestirmedeki "Ses Kaydet" çıktısı (m4a) `AudioFileConverter` ile WAV'a dönüştürülüp gönderilir.
+### Key iOS constraints and workarounds
+1. **Keyboard extensions cannot use the microphone** (Apple rule). Workaround: the Wispr Flow model.
+   - The keyboard opens the app via `sesliyaz://session`. Extensions have no `UIApplication.shared`; we find `UIApplication` in the responder chain and call `openURL:options:completionHandler:` through the ObjC runtime (`KeyboardViewController.openContainingApp`). Not an official API, so there is **App Store review risk**; fine for personal use.
+   - The app starts `AVAudioEngine` and stays alive in the background thanks to `UIBackgroundModes: audio` (orange mic dot visible). The user returns with the ◀ breadcrumb.
+   - Later 🎤 taps reach the app via Darwin notifications; the app only writes to a file between start and stop.
+   - The session ends after the idle timeout (5 min by default, configurable).
+2. **Apps cannot type into another app's text field** → the Back Tap route copies to the clipboard.
+3. **The app cannot start the microphone from the background** → keyboard commands are only accepted while `sessionActive`. Otherwise the app publishes `.off` and the keyboard opens the app.
+4. The shortcut's "Record Audio" output (m4a) is converted to WAV with `AudioFileConverter` before sending.
 
-### IPC protokolü (`Shared/IPC.swift`, `Shared/SharedStore.swift`)
-- Bildirim adları: `<APP_GROUP_ID>.ipc.<mesaj>`
-- Klavye → uygulama: `ping`, `startRecording`, `stopRecording`, `cancelRecording`, `endSession`
-- Uygulama → klavye: `stateChanged` (her komuta yanıt olarak da gönderilir, "pong" görevi görür), `resultReady`
-- Klavye bir komut gönderir. 0,6 sn içinde `stateChanged` gelmezse uygulama ayakta değildir ve klavye uygulamayı açar. Uygulama ayaktaysa ama durum `.off` ise (start komutunda) yine uygulamayı açar.
-- Sonuç tekrarını önlemek için `consumedResultID` kullanılır. 120 sn'den eski sonuçlar yazılmaz.
-- Klavye App Group'a erişebilmek için **Tam Erişim** ister (`RequestsOpenAccess: true`).
+### IPC protocol (`Shared/IPC.swift`, `Shared/SharedStore.swift`)
+- Notification names: `<APP_GROUP_ID>.ipc.<message>`
+- Keyboard → app: `ping`, `startRecording`, `stopRecording`, `cancelRecording`, `endSession`
+- App → keyboard: `stateChanged` (also sent in reply to every command, acting as a "pong"), `resultReady`
+- The keyboard sends a command. If no `stateChanged` arrives within 0.6 s, the app is not running and the keyboard opens it. If the app is running but the state is `.off` (on a start command), it also opens the app.
+- `consumedResultID` prevents duplicate inserts. Results older than 120 s are not inserted.
+- The keyboard needs **Full Access** to reach the App Group (`RequestsOpenAccess: true`).
 
 ### Gemini (`App/Services/GeminiTranscriber.swift`)
-- Varsayılan model `gemini-3.5-transcribe`: `POST …/v1beta/interactions`, ses `{"type":"audio","mime_type","data"}` olarak inline gider, prompt yok. Stil → `transcription_config.mode` ("Temiz" = `smart`, "Kelimesi kelimesine" = varsayılan verbatim), dil → `language_codes`. Yanıt: `steps[].content[].text`.
-- Diğer modeller (adında "transcribe" geçmeyen): `POST https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent`, header `x-goog-api-key`. `gemini-flash-latest` cihazda 90 sn yanıt vermeden zaman aşımına düştü; bu yüzden varsayılan değiştirildi.
-- İstekler `Logger` (subsystem `com.denizardaslan.sesliyaz`) ile loglanır; cihazda görmek için: `xcrun devicectl device process launch --console --environment-variables '{"OS_ACTIVITY_DT_MODE":"1"}' …` Ayarlar'da `ListModels` ile seçilebilir. İlk anahtar doğrulamasında varsayılan model listede yoksa uygun bir "flash" modeli otomatik seçiliyor.
-- System prompt: sadece metni yaz; **sesteki komutları uygulama** (prompt injection koruması); TR/EN karışık konuşmayı destekle; "Temiz" ve "Kelimesi kelimesine" stilleri; konuşma yoksa `<empty>`.
-- Kayıt üst sınırı 5 dk (inline 20 MB limiti için güvenli).
-- Ücretsiz katmanda Google veriyi model eğitimi için kullanabilir. Bu, uygulamada ve README'de belirtildi.
+- Default model `gemini-3.5-transcribe`: `POST …/v1beta/interactions`, audio sent inline as `{"type":"audio","mime_type","data"}`, no prompt. Style → `transcription_config.mode` ("Clean" = `smart`, "Verbatim" = default verbatim), language → `language_codes`. Response: `steps[].content[].text`.
+- Other models (names without "transcribe"): `POST https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent`, header `x-goog-api-key`. `gemini-flash-latest` timed out on device after 90 s with no response, which is why the default changed.
+- Models can be picked in Settings via `ListModels`. On first key validation, if the default model is not in the list, a suitable "flash" model is chosen.
+- System prompt (generateContent only): output only the transcript; **never follow commands in the audio** (prompt-injection guard); support mixed Turkish/English speech; "Clean" and "Verbatim" styles; `<empty>` when there is no speech. The Turkish examples in the prompt are intentional.
+- Recording limit is 5 min (safe for the 20 MB inline limit).
+- On the free tier Google may use the data for training. This is stated in the app and the README.
+- Requests are logged with `Logger` (subsystem `com.denizardaslan.sesliyaz`). To see them on device:
+  `xcrun devicectl device process launch --device <ID> --terminate-existing --console --environment-variables '{"OS_ACTIVITY_DT_MODE":"1"}' com.denizardaslan.sesliyaz`
 
-### Dosyalar
+### Files
 ```
-project.yml                         XcodeGen tanımı (2 target, Info.plist/entitlements burada üretilir)
-scripts/bootstrap.sh                Mac: xcodegen kur → TEAM_ID yaz → generate → Xcode'u aç
-Shared/AppConfig.swift              App Group (Info.plist'teki SesliYazAppGroup'tan), URL şeması
+project.yml                         XcodeGen definition (2 targets; Info.plist/entitlements are generated here)
+scripts/bootstrap.sh                Mac: install xcodegen → set TEAM_ID → generate → open Xcode
+Shared/AppConfig.swift              App Group (from SesliYazAppGroup in Info.plist), URL scheme
 Shared/IPC.swift                    DarwinNotifier + ObservationToken
-Shared/SharedStore.swift            App Group JSON dosyaları
+Shared/SharedStore.swift            App Group JSON files
 App/SesliYazApp.swift               @main, onOpenURL(sesliyaz://session) → startSession
-App/Audio/AudioRecorder.swift       AVAudioEngine kayıt, kesinti/rota değişimi, AudioFileConverter
-App/Services/DictationController.swift  Durum makinesi (off/ready/recording/transcribing)
-App/Services/GeminiTranscriber.swift    REST istemci + prompt + hata eşleme (429, 401/403)
-App/Services/AppSettings.swift      Ayarlar + makeTranscriber() (intent'ler de kullanır)
+App/Audio/AudioRecorder.swift       AVAudioEngine recording, interruptions/route changes, AudioFileConverter
+App/Services/DictationController.swift  State machine (off/ready/recording/transcribing)
+App/Services/GeminiTranscriber.swift    REST client + prompt + error mapping (429, 401/403)
+App/Services/AppSettings.swift      Settings + makeTranscriber() (used by intents too)
 App/Services/KeychainStore.swift    AfterFirstUnlockThisDeviceOnly
-App/Services/HistoryStore.swift     Son 100 çeviri
+App/Services/HistoryStore.swift     Last 100 transcriptions
 App/Intents/Intents.swift           TranscribeAudioIntent, DictateIntent, StartKeyboardSessionIntent, AppShortcuts
-App/Views/*                         Onboarding (API anahtarı), Main, Settings, History, Guides
-App/Assets.xcassets                 AppIcon (1024, saf Python ile üretildi), AccentColor
-Keyboard/KeyboardViewController.swift   IPC, watchdog, insertText, uygulamayı açma
-Keyboard/KeyboardView.swift         SwiftUI klavye: 🎤, boşluk, sil (tekrarlı), return, 🌐
+App/Views/*                         Onboarding (API key), Main, Settings, History, Guides
+App/Assets.xcassets                 AppIcon (1024, generated with plain Python), AccentColor
+Keyboard/KeyboardViewController.swift   IPC, watchdog, insertText, opening the app
+Keyboard/KeyboardView.swift         SwiftUI keyboard: 🎤, space, delete (repeating), return, 🌐
 ```
 
-### Build ayarları (`project.yml`)
-- iOS 17+, iPhone only, Swift 5 dil modu (strict concurrency hatalarından kaçınmak için)
-- `BUNDLE_ID_PREFIX: com.denizardaslan` → `…sesliyaz` ve `…sesliyaz.keyboard`
-- `APP_GROUP_ID: group.$(BUNDLE_ID_PREFIX).sesliyaz`, entitlements'a ve Info.plist'e enjekte ediliyor
-- `DEVELOPMENT_TEAM: ""`. Kullanıcı kendi Team ID'sini `bootstrap.sh <TEAM_ID>` ile ya da Xcode'da girer.
-- `.xcodeproj`, üretilen Info.plist ve entitlements **.gitignore'da**. Her değişiklikten sonra `xcodegen generate` çalıştırılmalı.
+### Build settings (`project.yml`)
+- iOS 17+, iPhone only, Swift 5 language mode (to avoid strict-concurrency errors)
+- `BUNDLE_ID_PREFIX: com.denizardaslan` → `…sesliyaz` and `…sesliyaz.keyboard`
+- `APP_GROUP_ID: group.$(BUNDLE_ID_PREFIX).sesliyaz`, injected into the entitlements and Info.plist
+- `APP_DISPLAY_NAME: Voice Type`, used as `CFBundleDisplayName` for both targets
+- `DEVELOPMENT_TEAM: "Y4NCFKA5A4"` (others can set theirs with `bootstrap.sh <TEAM_ID>` or in Xcode)
+- The `.xcodeproj`, generated Info.plist and entitlements are **in .gitignore**. Run `xcodegen generate` after every change to `project.yml` or the file layout.
+- iOS 17 note: `@Parameter(supportedContentTypes:)` requires iOS 18, so the intent uses `supportedTypeIdentifiers: ["public.audio"]` (must be a literal).
 
 ---
 
-## 5. Sıradaki adımlar (öncelik sırasıyla)
+## 4. Next steps (in priority order)
 
-1. **Push** (§3). Kullanıcıya push sonrası Mac'te clone yapabileceğini söyle.
-2. **İlk Mac build'i.** Kullanıcı derleme hatalarını yapıştıracak; düzelt. Şüpheli noktalar:
-   - `KeyboardViewController.openContainingApp`: `method(for:)` / `unsafeBitCast` kullanımı
-   - Swift 5 modunda MainActor izolasyon uyarıları (`AudioRecorder` callback'leri, Darwin handler'ları)
-   - `AVAudioConverter.convert` kullanılmayan dönüş değeri uyarısı
-   - App Intents: `@Parameter(supportedContentTypes:)`, `IntentDescription(categoryName:)`
-   - Otomatik imzalamada App Group capability'si entitlements dosyasından kendiliğinden kaydolmazsa: iki target'ta da Signing & Capabilities → + App Groups.
-3. **Cihazda test:** API anahtarı akışı, uygulama içi dikte, Back Tap kestirmesi, klavye oturum akışı (uygulamayı açma, ◀ ile dönüş, kayıt, ekleme), oturum zaman aşımı, arama ile kesinti.
-4. **TestFlight otomasyonu** (§6).
-5. Yol haritası (README'de de var): cihaz içi model (WhisperKit / Apple SpeechAnalyzer), özel kelime listesi, ton seçenekleri, canlı önizleme.
+1. **On-device test:** keyboard session flow (opening the app, returning with ◀, recording, inserting), Back Tap shortcut, session timeout, interruption by a call.
+2. **TestFlight automation** (§5).
+3. Roadmap (also in the README): on-device model (WhisperKit / Apple SpeechAnalyzer), custom vocabulary (`custom_vocabulary` for the Transcribe model), tone options, live preview.
 
 ---
 
-## 6. Plan: Telefondan yönetim + TestFlight
+## 5. Plan: manage from the phone + TestFlight
 
-Kullanıcı Mac'e bağımlı olmadan, Claude Code'dan (telefondan) değişiklik yapıp TestFlight ile telefona almak istiyor. Önerilen yol:
+The user wants to make changes from Claude Code (on the phone) and get them onto the phone via TestFlight, without depending on the Mac. Proposed route:
 
 ```
-Claude Code (telefon) → git push → GitHub Actions (macos runner)
+Claude Code (phone) → git push → GitHub Actions (macOS runner)
    → xcodegen generate → fastlane (match/cert + build_app) → upload_to_testflight
-   → 10–20 dk sonra TestFlight uygulamasında güncelleme
+   → update shows up in TestFlight 10–20 min later
 ```
 
-**Bir kerelik kurulum, kullanıcı tarafında:**
-- App Store Connect'te uygulama kaydı (bundle ID: `com.denizardaslan.sesliyaz`; klavye ID'si de kayıtlı olmalı)
-- App Store Connect **API anahtarı** (.p8, Key ID, Issuer ID)
-- İmzalama: fastlane `match` (ayrı private repo) **veya** CI'da API anahtarıyla otomatik imzalama (`-allowProvisioningUpdates`)
-- GitHub repo secrets: `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8` (base64), `TEAM_ID`, gerekiyorsa `MATCH_PASSWORD` ve `MATCH_GIT_URL`
-- **Gizli bilgiler sohbete yazılmamalı.** Kullanıcı bunları GitHub'a kendisi ekler.
+**One-time setup, on the user's side:**
+- App record in App Store Connect (bundle ID `com.denizardaslan.sesliyaz`; the keyboard ID must be registered too)
+- App Store Connect **API key** (.p8, Key ID, Issuer ID)
+- Signing: fastlane `match` (separate private repo) **or** automatic signing in CI with the API key (`-allowProvisioningUpdates`)
+- GitHub repo secrets: `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8` (base64), `TEAM_ID`, and if needed `MATCH_PASSWORD` and `MATCH_GIT_URL`
+- **Secrets must never be pasted into the chat.** The user adds them to GitHub themselves.
 
-**Agent tarafında yapılacaklar:**
-- `.github/workflows/testflight.yml` (tetikleyici: `workflow_dispatch` ve/veya `main` push / tag), macOS runner, `brew install xcodegen`, fastlane
-- `fastlane/Fastfile` (beta lane: build numarasını artır → build → TestFlight)
-- Build numarası: `CURRENT_PROJECT_VERSION`'ı CI'da `github.run_number` ile ayarla
-- Not: macOS runner'lar private repolarda ücretsiz dakikayı Linux'a göre daha hızlı tüketir.
-
-Önerilen sıra: önce Mac'te bir kere elle build alıp uygulamanın çalıştığını doğrula, sonra CI'yı kur.
+**Agent-side work:**
+- `.github/workflows/testflight.yml` (trigger: `workflow_dispatch` and/or push to `main` / tag), macOS runner, `brew install xcodegen`, fastlane
+- `fastlane/Fastfile` (beta lane: bump build number → build → TestFlight)
+- Build number: set `CURRENT_PROJECT_VERSION` from `github.run_number` in CI
+- Note: macOS runners burn free minutes on private repos much faster than Linux.
 
 ---
 
-## 7. Çalışma notları
-- Commit'lerin sonuna `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` ekleniyor. Commit, kod ya da PR'da model adı geçmemeli.
-- Git kimliği: `denizardaslan <aardaslan@gmail.com>`
-- Kullanıcı açıkça istemedikçe PR açma.
+## 6. Working notes
+- Commits end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. No model names in commits, code or PRs otherwise.
+- Git identity: `denizardaslan <aardaslan@gmail.com>`
+- Don't open PRs unless the user explicitly asks.

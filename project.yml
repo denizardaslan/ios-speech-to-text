@@ -1,10 +1,11 @@
-# XcodeGen proje tanımı.
-# Mac'te:  brew install xcodegen && xcodegen generate && open SesliYaz.xcodeproj
+# XcodeGen project definition.
+# On a Mac:  brew install xcodegen && xcodegen generate && open SesliYaz.xcodeproj
 #
-# Kendi hesabına göre değiştirmen gerekenler:
-#   - DEVELOPMENT_TEAM  (Xcode > Settings > Accounts'ta görünen Team ID)
-#   - BUNDLE_ID_PREFIX  (benzersiz olmalı, örn. com.adsoyad)
-# App Group kimliği bundle prefix'ten otomatik türetilir.
+# Change these for your own account:
+#   - DEVELOPMENT_TEAM  (the Team ID shown in Xcode > Settings > Accounts)
+#   - BUNDLE_ID_PREFIX  (must be unique, e.g. com.yourname)
+# The App Group ID is derived from the bundle prefix automatically.
+# The user-facing app name is APP_DISPLAY_NAME; the target and bundle IDs keep the original "SesliYaz" name.
 
 name: SesliYaz
 
@@ -12,13 +13,14 @@ options:
   deploymentTarget:
     iOS: "17.0"
   createIntermediateGroups: true
-  developmentLanguage: tr
+  developmentLanguage: en
 
 settings:
   base:
     DEVELOPMENT_TEAM: "Y4NCFKA5A4"
     BUNDLE_ID_PREFIX: com.denizardaslan
     APP_GROUP_ID: group.$(BUNDLE_ID_PREFIX).sesliyaz
+    APP_DISPLAY_NAME: Voice Type
     CODE_SIGN_STYLE: Automatic
     SWIFT_VERSION: "5.0"
     MARKETING_VERSION: "0.1.0"
@@ -38,14 +40,14 @@ targets:
     info:
       path: App/Info.plist
       properties:
-        CFBundleDisplayName: Sesli Yaz
+        CFBundleDisplayName: $(APP_DISPLAY_NAME)
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}
         UIApplicationSupportsIndirectInputEvents: true
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
-        NSMicrophoneUsageDescription: Konuşmanı yazıya çevirmek için mikrofona erişim gerekiyor.
+        NSMicrophoneUsageDescription: Microphone access is needed to turn your speech into text.
         UIBackgroundModes:
           - audio
         CFBundleURLTypes:
@@ -72,7 +74,7 @@ targets:
     info:
       path: Keyboard/Info.plist
       properties:
-        CFBundleDisplayName: Sesli Yaz
+        CFBundleDisplayName: $(APP_DISPLAY_NAME)
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         SesliYazAppGroup: $(APP_GROUP_ID)
@@ -82,7 +84,7 @@ targets:
           NSExtensionAttributes:
             IsASCIICapable: false
             PrefersRightToLeft: false
-            PrimaryLanguage: tr-TR
+            PrimaryLanguage: mul
             RequestsOpenAccess: true
     entitlements:
       path: Keyboard/SesliYazKeyboard.entitlements

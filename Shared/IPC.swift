@@ -1,32 +1,32 @@
 import Foundation
 
-/// Klavye ⇄ ana uygulama arasındaki mesajlar.
-/// Darwin bildirimleri veri taşımaz; sadece "bir şey oldu" sinyali verir.
-/// Asıl veri `SharedStore` üzerinden App Group klasöründen okunur.
+/// Messages between the keyboard and the main app.
+/// Darwin notifications carry no payload; they only signal "something happened".
+/// The actual data is read from the App Group folder via `SharedStore`.
 enum IPCMessage: String, CaseIterable {
-    // Klavye → Uygulama
+    // Keyboard → App
     case ping
     case startRecording
     case stopRecording
     case cancelRecording
     case endSession
 
-    // Uygulama → Klavye
+    // App → Keyboard
     case stateChanged
     case resultReady
 
     var notificationName: String { "\(AppConfig.appGroupID).ipc.\(rawValue)" }
 }
 
-/// Gözlem sona erdiğinde (token bırakıldığında) dinleyiciyi kaldırır.
+/// Removes the listener when the observation ends (the token is released).
 final class ObservationToken {
     private let onCancel: () -> Void
     init(_ onCancel: @escaping () -> Void) { self.onCancel = onCancel }
     deinit { onCancel() }
 }
 
-/// Darwin (süreçler arası) bildirim merkezi için küçük bir sarmalayıcı.
-/// Tüm dinleyiciler ana thread'de çağrılır.
+/// A small wrapper around the Darwin (cross-process) notification center.
+/// All handlers are called on the main thread.
 final class DarwinNotifier {
     static let shared = DarwinNotifier()
 
@@ -43,7 +43,7 @@ final class DarwinNotifier {
         )
     }
 
-    /// Dönen token saklanmalıdır; bırakıldığında dinleme durur.
+    /// Keep the returned token; listening stops when it is released.
     func observe(_ message: IPCMessage, handler: @escaping () -> Void) -> ObservationToken {
         dispatchPrecondition(condition: .onQueue(.main))
         let name = message.notificationName

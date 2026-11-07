@@ -8,15 +8,15 @@ enum TranscriptionStyle: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .clean: return "Temiz (önerilen)"
-        case .verbatim: return "Kelimesi kelimesine"
+        case .clean: return "Clean (recommended)"
+        case .verbatim: return "Verbatim"
         }
     }
 
     var detail: String {
         switch self {
-        case .clean: return "Noktalama ekler, ıı/eee gibi dolgu seslerini ve tekrarları temizler. Anlamı değiştirmez."
-        case .verbatim: return "Söylediğin her şeyi olduğu gibi yazar."
+        case .clean: return "Adds punctuation and removes filler sounds (um, uh) and repetitions. Does not change the meaning."
+        case .verbatim: return "Writes down everything exactly as you said it."
         }
     }
 }
@@ -30,14 +30,14 @@ enum DictationLanguage: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .auto: return "Otomatik"
-        case .turkish: return "Türkçe"
-        case .english: return "İngilizce"
+        case .auto: return "Automatic"
+        case .turkish: return "Turkish"
+        case .english: return "English"
         }
     }
 }
 
-/// Kullanıcı ayarları. API anahtarı Keychain'de, diğerleri UserDefaults'ta tutulur.
+/// User settings. The API key lives in the Keychain, everything else in UserDefaults.
 final class AppSettings: ObservableObject {
     static let shared = AppSettings()
 
@@ -73,12 +73,12 @@ final class AppSettings: ObservableObject {
         didSet { defaults.set(language.rawValue, forKey: Keys.language) }
     }
 
-    /// Klavye oturumu bu kadar dakika kullanılmazsa mikrofon kapatılır.
+    /// The microphone is turned off after the keyboard session is unused for this many minutes.
     @Published var sessionTimeoutMinutes: Int {
         didSet { defaults.set(sessionTimeoutMinutes, forKey: Keys.sessionTimeout) }
     }
 
-    /// Uygulama içinden yapılan diktelerde sonucu otomatik panoya kopyala.
+    /// Automatically copy the result of in-app dictation to the clipboard.
     @Published var autoCopy: Bool {
         didSet { defaults.set(autoCopy, forKey: Keys.autoCopy) }
     }
@@ -95,7 +95,7 @@ final class AppSettings: ObservableObject {
         autoCopy = defaults.object(forKey: Keys.autoCopy) as? Bool ?? true
     }
 
-    /// Kayıtlı ayarlarla bir çevirici oluşturur. Kestirmeler (arka planda) da bunu kullanır.
+    /// Creates a transcriber with the saved settings. Shortcuts (in the background) use this too.
     static func makeTranscriber() throws -> GeminiTranscriber {
         let defaults = UserDefaults.standard
         guard let key = KeychainStore.string(for: apiKeyAccount), !key.isEmpty else {

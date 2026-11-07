@@ -1,11 +1,11 @@
 import Foundation
 import Security
 
-/// API anahtarını iOS Anahtar Zinciri'nde (Keychain) saklar.
-/// Keychain cihazda şifreli tutulur, uygulama silinse bile yedekten geri gelmez
-/// (`ThisDeviceOnly`), ve başka uygulamalar okuyamaz.
+/// Stores the API key in the iOS Keychain.
+/// The Keychain is encrypted on device, is not restored from backups (`ThisDeviceOnly`),
+/// and cannot be read by other apps.
 enum KeychainStore {
-    private static let service = "SesliYaz"
+    private static let service = "SesliYaz" // Keep as is: changing it would orphan saved keys.
 
     static func string(for account: String) -> String? {
         let query: [String: Any] = [
@@ -32,7 +32,7 @@ enum KeychainStore {
         guard let value, !value.isEmpty, let data = value.data(using: .utf8) else { return }
         var attributes = base
         attributes[kSecValueData as String] = data
-        // Kestirme, telefon kilitliyken (ilk kilit açılışından sonra) de çalışabilsin.
+        // Lets the shortcut run while the phone is locked (after the first unlock).
         attributes[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         SecItemAdd(attributes as CFDictionary, nil)
     }

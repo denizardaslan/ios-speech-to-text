@@ -1,14 +1,14 @@
 import Foundation
 
-/// Ses motorunun durumu (klavyede gösterilir).
+/// State of the audio engine (shown on the keyboard).
 enum EngineState: String, Codable {
-    /// Oturum kapalı; mikrofon kapalı.
+    /// Session closed; microphone off.
     case off
-    /// Oturum açık; konuşmaya hazır.
+    /// Session open; ready to listen.
     case ready
-    /// Kayıt yapılıyor.
+    /// Recording.
     case recording
-    /// Ses Gemini'ye gönderildi, metin bekleniyor.
+    /// Audio sent to Gemini, waiting for the text.
     case transcribing
 }
 
@@ -18,15 +18,15 @@ struct SharedSnapshot: Codable, Equatable {
     var updatedAt: Date = .distantPast
 }
 
-/// Uygulamanın klavyeye teslim ettiği çeviri sonucu.
+/// A transcription result the app hands over to the keyboard.
 struct KeyboardResult: Codable, Equatable {
     var id: UUID
     var text: String
     var createdAt: Date
 }
 
-/// App Group klasöründe küçük JSON dosyalarıyla süreçler arası durum paylaşımı.
-/// (Klavye, App Group'a erişebilmek için "Tam Erişim" izni ister.)
+/// Cross-process state sharing via small JSON files in the App Group folder.
+/// (The keyboard needs "Full Access" to reach the App Group.)
 enum SharedStore {
     private static let stateFile = "state.json"
     private static let resultFile = "result.json"
@@ -42,13 +42,13 @@ enum SharedStore {
         set { write(newValue, to: resultFile) }
     }
 
-    /// Klavyenin en son eklediği sonucun kimliği (aynı metin iki kez yazılmasın diye).
+    /// ID of the last result the keyboard inserted (so the same text is not inserted twice).
     static var consumedResultID: UUID? {
         get { read(UUID.self, from: consumedFile) }
         set { write(newValue, to: consumedFile) }
     }
 
-    // MARK: - Dosya işlemleri
+    // MARK: - File I/O
 
     private static func url(_ name: String) -> URL? {
         AppConfig.sharedContainerURL?.appendingPathComponent(name)

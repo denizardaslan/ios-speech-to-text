@@ -7,7 +7,7 @@ struct HistoryItem: Codable, Identifiable, Equatable {
     var source: String
 }
 
-/// Son çevirilerin listesi (cihazda, UserDefaults'ta).
+/// List of recent transcriptions (on device, in UserDefaults).
 final class HistoryStore: ObservableObject {
     static let shared = HistoryStore()
 

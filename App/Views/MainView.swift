@@ -16,21 +16,21 @@ struct MainView: View {
                 Section {
                     SessionRow()
                 } header: {
-                    Text("Klavye oturumu")
+                    Text("Keyboard Session")
                 } footer: {
-                    Text("Oturum açıkken mikrofon arka planda hazır bekler (ekranın üstünde turuncu nokta görünür) ve Sesli Yaz klavyesindeki 🎤 anında dinler. Ayarladığın süre boyunca kullanılmazsa kendiliğinden kapanır.")
+                    Text("While the session is on, the microphone waits in the background (an orange dot shows at the top of the screen) and 🎤 on the Voice Type keyboard listens instantly. It turns itself off if unused for the time you set.")
                 }
 
-                Section("Kurulum") {
+                Section("Setup") {
                     NavigationLink {
                         KeyboardGuideView()
                     } label: {
-                        Label("Klavyeyi etkinleştir", systemImage: "keyboard")
+                        Label("Enable the Keyboard", systemImage: "keyboard")
                     }
                     NavigationLink {
                         BackTapGuideView()
                     } label: {
-                        Label("Arkaya iki kez dokun", systemImage: "hand.tap")
+                        Label("Double Back Tap", systemImage: "hand.tap")
                     }
                 }
 
@@ -39,13 +39,13 @@ struct MainView: View {
                         ForEach(history.items.prefix(3)) { item in
                             HistoryRow(item: item)
                         }
-                        NavigationLink("Tüm geçmiş") { HistoryView() }
+                        NavigationLink("All History") { HistoryView() }
                     } header: {
-                        Text("Son çeviriler")
+                        Text("Recent")
                     }
                 }
             }
-            .navigationTitle("Sesli Yaz")
+            .navigationTitle("Voice Type")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     NavigationLink {
@@ -53,14 +53,14 @@ struct MainView: View {
                     } label: {
                         Image(systemName: "gearshape")
                     }
-                    .accessibilityLabel("Ayarlar")
+                    .accessibilityLabel("Settings")
                 }
             }
         }
     }
 }
 
-/// Uygulama içinden dikte: büyük mikrofon düğmesi + sonuç.
+/// In-app dictation: a big mic button plus the result.
 struct DictationPanel: View {
     @EnvironmentObject private var controller: DictationController
 
@@ -89,7 +89,7 @@ struct DictationPanel: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     HStack {
                         if controller.copiedToClipboard {
-                            Label("Panoya kopyalandı", systemImage: "checkmark.circle.fill")
+                            Label("Copied to clipboard", systemImage: "checkmark.circle.fill")
                                 .font(.caption)
                                 .foregroundStyle(.green)
                         }
@@ -97,11 +97,11 @@ struct DictationPanel: View {
                         Button {
                             UIPasteboard.general.string = controller.lastText
                         } label: {
-                            Label("Kopyala", systemImage: "doc.on.doc")
+                            Label("Copy", systemImage: "doc.on.doc")
                                 .font(.caption)
                         }
                         ShareLink(item: controller.lastText) {
-                            Label("Paylaş", systemImage: "square.and.arrow.up")
+                            Label("Share", systemImage: "square.and.arrow.up")
                                 .font(.caption)
                         }
                     }
@@ -116,9 +116,9 @@ struct DictationPanel: View {
 
     private var statusText: String {
         switch controller.state {
-        case .off, .ready: return "Konuşmak için dokun"
-        case .recording: return "Dinliyorum… bitirmek için dokun"
-        case .transcribing: return "Yazıya çevriliyor…"
+        case .off, .ready: return "Tap to speak"
+        case .recording: return "Listening… tap to finish"
+        case .transcribing: return "Transcribing…"
         }
     }
 }
@@ -131,9 +131,9 @@ struct SessionRow: View {
             Circle()
                 .fill(controller.sessionActive ? Color.green : Color.gray.opacity(0.4))
                 .frame(width: 10, height: 10)
-            Text(controller.sessionActive ? "Açık: klavyeye dönebilirsin" : "Kapalı")
+            Text(controller.sessionActive ? "On: you can go back to the keyboard" : "Off")
             Spacer()
-            Button(controller.sessionActive ? "Kapat" : "Başlat") {
+            Button(controller.sessionActive ? "Stop" : "Start") {
                 if controller.sessionActive {
                     controller.endSession()
                 } else {
@@ -144,14 +144,14 @@ struct SessionRow: View {
             .tint(controller.sessionActive ? Color.red : Color.accentColor)
         }
         if controller.sessionActive {
-            Label("Sol üst köşedeki ◀ ile yazdığın uygulamaya geri dön ve 🎤'a bas.", systemImage: "arrow.uturn.backward")
+            Label("Use ◀ in the top-left corner to go back to the app you were typing in, then tap 🎤.", systemImage: "arrow.uturn.backward")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }
     }
 }
 
-/// Durumuna göre renk/ikon değiştiren yuvarlak mikrofon düğmesi.
+/// Round mic button whose color and icon follow the engine state.
 struct MicButton: View {
     let state: EngineState
     let level: Float
@@ -184,7 +184,7 @@ struct MicButton: View {
         }
         .buttonStyle(.plain)
         .disabled(state == .transcribing)
-        .accessibilityLabel(state == .recording ? "Kaydı bitir" : "Konuşmaya başla")
+        .accessibilityLabel(state == .recording ? "Stop recording" : "Start speaking")
     }
 
     private var color: Color {
@@ -196,7 +196,7 @@ struct MicButton: View {
     }
 }
 
-/// "Dikte Et" kestirmesiyle açılan tam ekran kayıt görünümü.
+/// Full-screen recording view opened by the "Dictate" shortcut.
 struct QuickDictationView: View {
     @EnvironmentObject private var controller: DictationController
 
@@ -219,14 +219,14 @@ struct QuickDictationView: View {
             }
             Group {
                 switch controller.state {
-                case .recording: Text("Dinliyorum… bitirmek için dokun")
-                case .transcribing: Text("Yazıya çevriliyor…")
+                case .recording: Text("Listening… tap to finish")
+                case .transcribing: Text("Transcribing…")
                 case .off, .ready:
                     if controller.copiedToClipboard {
-                        Label("Panoya kopyalandı. Sol üstteki ◀ ile geri dönüp yapıştır.", systemImage: "checkmark.circle.fill")
+                        Label("Copied to clipboard. Use ◀ in the top-left to go back and paste.", systemImage: "checkmark.circle.fill")
                             .foregroundStyle(.green)
                     } else {
-                        Text("Konuşmak için dokun")
+                        Text("Tap to speak")
                     }
                 }
             }

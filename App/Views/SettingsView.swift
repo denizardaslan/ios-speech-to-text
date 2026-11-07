@@ -11,17 +11,17 @@ struct SettingsView: View {
     var body: some View {
         Form {
             Section {
-                LabeledContent("API anahtarı", value: maskedKey)
+                LabeledContent("API Key", value: maskedKey)
                 if showKeyForm {
                     APIKeyForm { showKeyForm = false }
                 } else {
-                    Button("Anahtarı değiştir") { showKeyForm = true }
+                    Button("Change Key") { showKeyForm = true }
                 }
-                Button("Anahtarı sil", role: .destructive) { confirmDelete = true }
+                Button("Delete Key", role: .destructive) { confirmDelete = true }
             } header: {
                 Text("Gemini")
             } footer: {
-                Text("Anahtar sadece bu cihazın Anahtar Zinciri'nde saklanır. Ses doğrudan Google'a gönderilir; arada başka sunucu yok. Not: Gemini'nin ücretsiz katmanında Google, gönderilen verileri ürünlerini geliştirmek için kullanabilir.")
+                Text("The key is stored only in this device's Keychain. Audio is sent directly to Google; there is no server in between. Note: on Gemini's free tier, Google may use the data you send to improve its products.")
             }
 
             Section {
@@ -32,7 +32,7 @@ struct SettingsView: View {
                     Task { await loadModels() }
                 } label: {
                     HStack {
-                        Text("Kullanılabilir modelleri getir")
+                        Text("Fetch Available Models")
                         if loadingModels { Spacer(); ProgressView() }
                     }
                 }
@@ -42,33 +42,33 @@ struct SettingsView: View {
             } header: {
                 Text("Model")
             } footer: {
-                Text("\"\(AppSettings.defaultModel)\" konuşmayı yazıya çevirmek için özel bir model; stil ve dil ayarlarını doğrudan kullanır. \"flash\" modelleri genel amaçlıdır.")
+                Text("\"\(AppSettings.defaultModel)\" is a dedicated speech-to-text model and uses the style and language settings directly. \"flash\" models are general purpose.")
             }
 
-            Section("Yazım") {
-                Picker("Stil", selection: $settings.style) {
+            Section("Transcription") {
+                Picker("Style", selection: $settings.style) {
                     ForEach(TranscriptionStyle.allCases) { Text($0.title).tag($0) }
                 }
                 Text(settings.style.detail).font(.footnote).foregroundStyle(.secondary)
-                Picker("Dil", selection: $settings.language) {
+                Picker("Language", selection: $settings.language) {
                     ForEach(DictationLanguage.allCases) { Text($0.title).tag($0) }
                 }
-                Toggle("Uygulamada sonucu panoya kopyala", isOn: $settings.autoCopy)
+                Toggle("Copy In-App Results to Clipboard", isOn: $settings.autoCopy)
             }
 
             Section {
                 Stepper(value: $settings.sessionTimeoutMinutes, in: 1...60) {
-                    LabeledContent("Kapanma süresi", value: "\(settings.sessionTimeoutMinutes) dk")
+                    LabeledContent("Auto-Off After", value: "\(settings.sessionTimeoutMinutes) min")
                 }
             } header: {
-                Text("Klavye oturumu")
+                Text("Keyboard Session")
             } footer: {
-                Text("Klavye oturumu bu süre boyunca kullanılmazsa mikrofon kapatılır. Sonraki 🎤 basışında uygulama bir anlığına tekrar açılır.")
+                Text("If the keyboard session is unused for this long, the microphone is turned off. The next 🎤 tap briefly opens the app again.")
             }
         }
-        .navigationTitle("Ayarlar")
-        .confirmationDialog("API anahtarı silinsin mi?", isPresented: $confirmDelete, titleVisibility: .visible) {
-            Button("Sil", role: .destructive) { settings.apiKey = "" }
+        .navigationTitle("Settings")
+        .confirmationDialog("Delete the API key?", isPresented: $confirmDelete, titleVisibility: .visible) {
+            Button("Delete", role: .destructive) { settings.apiKey = "" }
         }
     }
 
@@ -82,7 +82,7 @@ struct SettingsView: View {
 
     private var maskedKey: String {
         let key = settings.apiKey
-        guard key.count > 8 else { return key.isEmpty ? "Yok" : "••••" }
+        guard key.count > 8 else { return key.isEmpty ? "None" : "••••" }
         return "\(key.prefix(4))••••\(key.suffix(4))"
     }
 

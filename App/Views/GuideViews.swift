@@ -4,29 +4,29 @@ struct KeyboardGuideView: View {
     var body: some View {
         List {
             Section {
-                StepRow(number: 1, text: "Ayarlar › Genel › Klavye › Klavyeler › Yeni Klavye Ekle… › \"Sesli Yaz\"")
-                StepRow(number: 2, text: "Listede \"Sesli Yaz\"a dokun ve \"Tam Erişime İzin Ver\"i aç. (Klavyenin uygulamayla konuşabilmesi için gerekli. Klavye hiçbir tuş vuruşunu kaydetmez veya göndermez.)")
-                StepRow(number: 3, text: "Herhangi bir uygulamada klavyedeki 🌐 tuşuna basılı tut ve \"Sesli Yaz\"ı seç.")
-                Button("Ayarlar'ı aç") {
+                StepRow(number: 1, text: "Settings › General › Keyboard › Keyboards › Add New Keyboard… › \"Voice Type\"")
+                StepRow(number: 2, text: "Tap \"Voice Type\" in the list and turn on \"Allow Full Access\". (Needed so the keyboard can talk to the app. The keyboard never records or sends your keystrokes.)")
+                StepRow(number: 3, text: "In any app, touch and hold 🌐 on the keyboard and choose \"Voice Type\".")
+                Button("Open Settings") {
                     if let url = URL(string: UIApplication.openSettingsURLString) {
                         UIApplication.shared.open(url)
                     }
                 }
             } header: {
-                Text("Kurulum (bir kere)")
+                Text("Setup (once)")
             }
 
             Section {
-                StepRow(number: 1, text: "Sesli Yaz klavyesindeki 🎤'a bas.")
-                StepRow(number: 2, text: "Oturum kapalıysa Sesli Yaz bir anlığına açılır ve mikrofonu hazırlar. Sol üstteki ◀ ile geri dön.")
-                StepRow(number: 3, text: "🎤'a bas, konuş, tekrar bas. Metin imlecin olduğu yere yazılır.")
+                StepRow(number: 1, text: "Tap 🎤 on the Voice Type keyboard.")
+                StepRow(number: 2, text: "If no session is on, Voice Type opens briefly and gets the microphone ready. Go back with ◀ in the top-left.")
+                StepRow(number: 3, text: "Tap 🎤, speak, tap again. The text is typed at the cursor.")
             } header: {
-                Text("Kullanım")
+                Text("Usage")
             } footer: {
-                Text("Apple, klavyelerin mikrofonu doğrudan kullanmasına izin vermiyor. Bu yüzden kaydı arka planda Sesli Yaz uygulaması yapar. Oturum açık kaldıkça uygulamaya tekrar gitmen gerekmez.")
+                Text("Apple does not let keyboards use the microphone directly, so the Voice Type app records in the background. As long as the session stays on, you don't need to go back to the app.")
             }
         }
-        .navigationTitle("Klavye")
+        .navigationTitle("Keyboard")
     }
 }
 
@@ -34,34 +34,34 @@ struct BackTapGuideView: View {
     var body: some View {
         List {
             Section {
-                StepRow(number: 1, text: "Kestirmeler uygulamasında + ile yeni kestirme oluştur. Adı: \"Sesli Yaz\".")
-                StepRow(number: 2, text: "\"Ses Kaydet\" eylemini ekle. Ayrıntılarında: Ses Kalitesi \"Normal\", Kaydı Başlat \"Hemen\", Bitir \"Dokununca\".")
-                StepRow(number: 3, text: "\"Sesli Yaz › Sesi Yazıya Çevir\" eylemini ekle. Ses: \"Kaydedilen Ses\" olmalı, \"Panoya kopyala\" açık kalsın.")
-                StepRow(number: 4, text: "(İsteğe bağlı) \"Bildirim Göster\" ekle ve metne \"Yazıya Çevrilen Metin\"i koy, böylece ne yazıldığını görürsün.")
-                Button("Kestirmeler'i aç") {
+                StepRow(number: 1, text: "In the Shortcuts app, tap + to create a new shortcut. Name it \"Voice Type\".")
+                StepRow(number: 2, text: "Add the \"Record Audio\" action. In its details: Audio Quality \"Normal\", Start Recording \"Immediately\", Finish Recording \"On Tap\".")
+                StepRow(number: 3, text: "Add the \"Voice Type › Transcribe Audio\" action. Audio should be \"Recorded Audio\"; leave \"Copy to Clipboard\" on.")
+                StepRow(number: 4, text: "(Optional) Add \"Show Notification\" with \"Transcribed Text\" as its text, so you can see what was written.")
+                Button("Open Shortcuts") {
                     if let url = URL(string: "shortcuts://") { UIApplication.shared.open(url) }
                 }
             } header: {
-                Text("1. Kestirmeyi oluştur")
+                Text("1. Create the shortcut")
             }
 
             Section {
-                StepRow(number: 1, text: "Ayarlar › Erişilebilirlik › Dokunma › Arkaya Dokun")
-                StepRow(number: 2, text: "\"İki Kez Dokun\" › listeden \"Sesli Yaz\" kestirmesini seç.")
+                StepRow(number: 1, text: "Settings › Accessibility › Touch › Back Tap")
+                StepRow(number: 2, text: "\"Double Tap\" › choose the \"Voice Type\" shortcut from the list.")
             } header: {
-                Text("2. Arkaya dokunmaya bağla")
+                Text("2. Bind it to Back Tap")
             }
 
             Section {
-                StepRow(number: 1, text: "İstediğin uygulamada telefonun arkasına iki kez dokun.")
-                StepRow(number: 2, text: "Konuş, bitince ekrandaki kayıt düğmesine dokun.")
-                StepRow(number: 3, text: "Metin panoya kopyalanır. Yazı alanına uzun basıp \"Yapıştır\"a dokun.")
+                StepRow(number: 1, text: "In any app, double-tap the back of your phone.")
+                StepRow(number: 2, text: "Speak, then tap the record button on screen when you're done.")
+                StepRow(number: 3, text: "The text is copied to the clipboard. Touch and hold the text field and tap \"Paste\".")
             } header: {
-                Text("Kullanım")
+                Text("Usage")
             } footer: {
-                Text("iOS, uygulamaların başka bir uygulamanın yazı alanına doğrudan yazmasına izin vermez. Bu yüzden arkaya dokunma yolunda metin panoya kopyalanır. Doğrudan yazdırmak istersen Sesli Yaz klavyesini kullan.\n\nAlternatif: \"Ses Kaydet\" yerine tek bir \"Sesli Yaz › Dikte Et\" eylemi de seçebilirsin. Bu eylem uygulamayı açıp hemen dinlemeye başlar.")
+                Text("iOS does not let apps type directly into another app's text field, so the Back Tap route copies the text to the clipboard. To have it typed directly, use the Voice Type keyboard.\n\nAlternative: instead of \"Record Audio\", you can use a single \"Voice Type › Dictate\" action. It opens the app and starts listening right away.")
             }
         }
-        .navigationTitle("Arkaya Dokunma")
+        .navigationTitle("Back Tap")
     }
 }

@@ -13,7 +13,7 @@ struct SesliYazApp: App {
                 .environmentObject(controller)
                 .environmentObject(history)
                 .onOpenURL { url in
-                    // Klavye, oturum kapalıyken "sesliyaz://session" adresini açar.
+                    // The keyboard opens "sesliyaz://session" when no session is active.
                     guard url.scheme == AppConfig.urlScheme, url.host == "session" else { return }
                     Task { await controller.startSession() }
                 }

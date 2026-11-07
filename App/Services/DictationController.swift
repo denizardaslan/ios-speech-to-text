@@ -4,28 +4,28 @@ import os
 
 private let log = Logger(subsystem: "com.denizardaslan.sesliyaz", category: "Dictation")
 
-/// Kaydın kimin için yapıldığı (sonucun nereye teslim edileceği).
+/// Who the recording is for (where the result should be delivered).
 enum RecordingOrigin {
-    /// Klavyeden başlatıldı → metin klavyeye gönderilir, imlece yazılır.
+    /// Started from the keyboard → the text is sent to the keyboard and typed at the cursor.
     case keyboard
-    /// Uygulama içinden / "Dikte Et" kestirmesinden → metin panoya kopyalanır.
+    /// From inside the app / the "Dictate" shortcut → the text is copied to the clipboard.
     case app
 }
 
-/// Uygulamanın beyni: ses oturumu, kayıt, çeviri ve sonucu teslim etme.
+/// The brains of the app: audio session, recording, transcription and delivering the result.
 @MainActor
 final class DictationController: ObservableObject {
     static let shared = DictationController()
 
     @Published private(set) var state: EngineState = .off
-    /// Klavye oturumu açık mı (mikrofon arka planda hazır bekliyor mu)?
+    /// Is the keyboard session on (is the microphone waiting in the background)?
     @Published private(set) var sessionActive = false
     @Published private(set) var level: Float = 0
     @Published private(set) var lastText = ""
     @Published private(set) var lastError: String?
-    /// "Dikte Et" kestirmesi ile açıldığında tam ekran kayıt görünümü.
+    /// Full-screen recording view when opened by the "Dictate" shortcut.
     @Published var quickDictationVisible = false
-    /// Son sonuç panoya kopyalandı mı (arayüzde rozet için).
+    /// Whether the last result was copied to the clipboard (for the badge in the UI).
     @Published private(set) var copiedToClipboard = false
 
     private let recorder = AudioRecorder()
@@ -38,7 +38,7 @@ final class DictationController: ObservableObject {
     private var maxDurationTimer: Timer?
     private var tokens: [ObservationToken] = []
 
-    /// Gemini'ye inline gönderilebilecek güvenli üst sınır.
+    /// A safe upper limit for sending audio inline to Gemini.
     private let maxRecordingSeconds: TimeInterval = 5 * 60
 
     private init() {
@@ -54,7 +54,7 @@ final class DictationController: ObservableObject {
         publish(.off)
     }
 
-    // MARK: - Klavye komutları
+    // MARK: - Keyboard commands
 
     private func listenToKeyboard() {
         let ipc = DarwinNotifier.shared
@@ -62,7 +62,7 @@ final class DictationController: ObservableObject {
             ipc.observe(.ping) { [weak self] in self?.publishCurrentState() },
             ipc.observe(.startRecording) { [weak self] in
                 guard let self else { return }
-                // Oturum yoksa uygulama arka planda mikrofonu açamaz; klavye uygulamayı açacak.
+                // Without a session the app cannot turn on the mic in the background; the keyboard will open the app.
                 guard self.sessionActive else {
                     self.lastError = nil
                     return self.publishCurrentState()
@@ -75,9 +75,9 @@ final class DictationController: ObservableObject {
         ]
     }
 
-    // MARK: - Oturum (klavye için)
+    // MARK: - Session (for the keyboard)
 
-    /// Mikrofonu açar ve arka planda hazır bekletir. Uygulama ön plandayken çağrılmalıdır.
+    /// Turns on the microphone and keeps it ready in the background. Must be called while the app is in the foreground.
     func startSession() async {
         lastError = nil
         guard await AudioRecorder.requestPermission() else {
@@ -105,7 +105,7 @@ final class DictationController: ObservableObject {
         level = 0
     }
 
-    // MARK: - Kayıt
+    // MARK: - Recording
 
     func toggleRecording(origin: RecordingOrigin = .app) {
         switch state {
@@ -169,10 +169,10 @@ final class DictationController: ObservableObject {
 
         publish(.transcribing)
         let origin = self.origin
-        log.notice("Kayıt bitti: \(duration, format: .fixed(precision: 1)) sn, çeviri başlıyor")
+        log.notice("Recording finished: \(duration, format: .fixed(precision: 1)) s, starting transcription")
 
         Task {
-            // Uygulama arka plandayken çeviri yarıda kesilmesin.
+            // Don't let the transcription be cut off while the app is in the background.
             let bgTask = UIApplication.shared.beginBackgroundTask(withName: "transcribe")
             defer {
                 try? FileManager.default.removeItem(at: fileURL)
@@ -183,7 +183,7 @@ final class DictationController: ObservableObject {
                 let text = try await transcriber.transcribe(audioURL: fileURL, mimeType: "audio/wav")
                 deliver(text, to: origin)
             } catch {
-                log.error("Çeviri başarısız: \(String(describing: error), privacy: .public)")
+                log.error("Transcription failed: \(String(describing: error), privacy: .public)")
                 lastError = error.localizedDescription
             }
             finishCycle()
@@ -198,24 +198,24 @@ final class DictationController: ObservableObject {
         finishCycle()
     }
 
-    // MARK: - "Dikte Et" kestirmesi
+    // MARK: - "Dictate" shortcut
 
     func beginQuickDictation() {
         quickDictationVisible = true
         Task { await startRecording(origin: .app) }
     }
 
-    // MARK: - Sonuç
+    // MARK: - Result
 
     private func deliver(_ text: String, to origin: RecordingOrigin) {
         lastText = text
         switch origin {
         case .keyboard:
-            history.add(text, source: "Klavye")
+            history.add(text, source: "Keyboard")
             SharedStore.result = KeyboardResult(id: UUID(), text: text, createdAt: Date())
             DarwinNotifier.shared.post(.resultReady)
         case .app:
-            history.add(text, source: "Uygulama")
+            history.add(text, source: "App")
             if settings.autoCopy {
                 UIPasteboard.general.string = text
                 copiedToClipboard = true
@@ -223,7 +223,7 @@ final class DictationController: ObservableObject {
         }
     }
 
-    // MARK: - Durum
+    // MARK: - State
 
     private func finishCycle() {
         recordingStartedAt = nil
@@ -242,16 +242,16 @@ final class DictationController: ObservableObject {
 
     private func publishCurrentState() { publish(state) }
 
-    /// Durumu hem arayüze hem klavyeye (App Group + Darwin bildirimi) yayınlar.
+    /// Publishes the state to both the UI and the keyboard (App Group + Darwin notification).
     private func publish(_ newState: EngineState) {
         state = newState
         SharedStore.state = SharedSnapshot(engineState: newState, lastError: lastError, updatedAt: Date())
         DarwinNotifier.shared.post(.stateChanged)
     }
 
-    // MARK: - Zamanlayıcılar
+    // MARK: - Timers
 
-    /// Oturum bir süre kullanılmazsa mikrofonu kapat (pil ve gizlilik).
+    /// Turn off the microphone if the session goes unused for a while (battery and privacy).
     private func scheduleIdleTimeout() {
         idleTimer?.invalidate()
         let interval = TimeInterval(max(1, settings.sessionTimeoutMinutes) * 60)
