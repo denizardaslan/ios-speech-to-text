@@ -89,6 +89,11 @@ final class AppSettings: ObservableObject {
         didSet { defaults.set(autoReturn, forKey: Keys.autoReturn) }
     }
 
+    /// Start recording as soon as the Voice Type keyboard appears. Stored in the App Group so the keyboard can read it.
+    @Published var autoStartOnKeyboardOpen: Bool {
+        didSet { SharedStore.keyboardPreferences.autoStartOnOpen = autoStartOnKeyboardOpen }
+    }
+
     var hasAPIKey: Bool { !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
     private init() {
@@ -100,6 +105,7 @@ final class AppSettings: ObservableObject {
         sessionTimeoutMinutes = timeout > 0 ? timeout : 5
         autoCopy = defaults.object(forKey: Keys.autoCopy) as? Bool ?? true
         autoReturn = defaults.object(forKey: Keys.autoReturn) as? Bool ?? true
+        autoStartOnKeyboardOpen = SharedStore.keyboardPreferences.autoStartOnOpen
     }
 
     /// Creates a transcriber with the saved settings. Shortcuts (in the background) use this too.

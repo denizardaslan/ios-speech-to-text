@@ -18,6 +18,8 @@ final class KeyboardViewController: UIInputViewController {
     private var watchdog: DispatchWorkItem?
     private var pendingCommand: IPCMessage?
     private var pingWatchdog: DispatchWorkItem?
+    /// The app we are typing into (e.g. net.whatsapp.WhatsApp), so the main app can jump back to it.
+    private var hostBundleID: String?
 
     // MARK: - Lifecycle
 
@@ -55,7 +57,21 @@ final class KeyboardViewController: UIInputViewController {
         model.showsGlobeKey = needsInputModeSwitchKey
         model.returnKeyTitle = returnKeyTitle
         insertPendingResult()
-        checkAppAlive()
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        // The host connection is only fully set up once we are on screen.
+        hostBundleID = HostAppDetector.detect(from: self).bundleID
+
+        if hasFullAccess, SharedStore.keyboardPreferences.autoStartOnOpen {
+            // Switching to this keyboard = "I want to talk": start listening without a 🎤 tap.
+            // If recording is already running (e.g. we just came back from the app), the app ignores it.
+            model.errorMessage = nil
+            send(.startRecording, openAppIfNoReply: true)
+        } else {
+            checkAppAlive()
+        }
     }
 
     override func viewWillLayoutSubviews() {
@@ -173,7 +189,8 @@ final class KeyboardViewController: UIInputViewController {
     /// responder chain and call openURL through the Objective-C runtime.
     private func openContainingApp(startRecording: Bool) {
         model.needsSessionHint = true
-        let url = AppConfig.sessionURL(startRecording: startRecording) as NSURL
+        if hostBundleID == nil { hostBundleID = HostAppDetector.detect(from: self).bundleID }
+        let url = AppConfig.sessionURL(startRecording: startRecording, hostBundleID: hostBundleID) as NSURL
         let selector = NSSelectorFromString("openURL:options:completionHandler:")
 
         var responder: UIResponder? = self

@@ -27,10 +27,22 @@ struct KeyboardResult: Codable, Equatable {
 
 /// Cross-process state sharing via small JSON files in the App Group folder.
 /// (The keyboard needs "Full Access" to reach the App Group.)
+/// Keyboard behaviour the user sets in the app (the keyboard can only read the App Group).
+struct KeyboardPreferences: Codable, Equatable {
+    /// Start recording as soon as the Voice Type keyboard appears, without tapping 🎤.
+    var autoStartOnOpen = true
+}
+
 enum SharedStore {
+    private static let preferencesFile = "keyboard-preferences.json"
     private static let stateFile = "state.json"
     private static let resultFile = "result.json"
     private static let consumedFile = "consumed.json"
+
+    static var keyboardPreferences: KeyboardPreferences {
+        get { read(KeyboardPreferences.self, from: preferencesFile) ?? KeyboardPreferences() }
+        set { write(newValue, to: preferencesFile) }
+    }
 
     static var state: SharedSnapshot {
         get { read(SharedSnapshot.self, from: stateFile) ?? SharedSnapshot() }

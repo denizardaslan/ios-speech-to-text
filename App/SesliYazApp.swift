@@ -16,9 +16,10 @@ struct SesliYazApp: App {
                 .onOpenURL { url in
                     // The keyboard opens "sesliyaz://session[?record=1]" when no session is active.
                     guard url.scheme == AppConfig.urlScheme, url.host == "session" else { return }
-                    let record = URLComponents(url: url, resolvingAgainstBaseURL: false)?
-                        .queryItems?.contains { $0.name == "record" && $0.value == "1" } ?? false
-                    Task { await controller.handleKeyboardLaunch(startRecording: record) }
+                    let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+                    let record = items.contains { $0.name == "record" && $0.value == "1" }
+                    let host = items.first { $0.name == "host" }?.value
+                    Task { await controller.handleKeyboardLaunch(startRecording: record, hostBundleID: host) }
                 }
                 .onChange(of: scenePhase) { _, phase in
                     if phase == .background { controller.appDidEnterBackground() }

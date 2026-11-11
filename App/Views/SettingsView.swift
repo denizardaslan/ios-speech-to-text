@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject private var settings: AppSettings
+    @EnvironmentObject private var controller: DictationController
     @State private var models: [String] = []
     @State private var loadingModels = false
     @State private var modelError: String?
@@ -60,11 +61,19 @@ struct SettingsView: View {
                 Stepper(value: $settings.sessionTimeoutMinutes, in: 1...60) {
                     LabeledContent("Auto-Off After", value: "\(settings.sessionTimeoutMinutes) min")
                 }
+                Toggle("Start Recording When Keyboard Opens", isOn: $settings.autoStartOnKeyboardOpen)
                 Toggle("Jump Back Automatically", isOn: $settings.autoReturn)
+                if let report = controller.lastJumpBackReport {
+                    LabeledContent("Last Jump Back") {
+                        Text(report)
+                            .font(.caption.monospaced())
+                            .textSelection(.enabled)
+                    }
+                }
             } header: {
                 Text("Keyboard Session")
             } footer: {
-                Text("If the keyboard session is unused for this long, the microphone is turned off. The next 🎤 tap briefly opens the app, starts recording and (with Jump Back on) returns you to the app you were typing in, so you can just keep talking.")
+                Text("If the keyboard session is unused for this long, the microphone is turned off. The next 🎤 tap briefly opens the app, starts recording and (with Jump Back on) returns you to the app you were typing in, so you can just keep talking. With \"Start Recording When Keyboard Opens\", switching to the Voice Type keyboard starts listening right away.")
             }
         }
         .navigationTitle("Settings")

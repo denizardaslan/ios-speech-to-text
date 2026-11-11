@@ -17,7 +17,7 @@ struct KeyboardGuideView: View {
             }
 
             Section {
-                StepRow(number: 1, text: "Tap 🎤 on the Voice Type keyboard and start talking.")
+                StepRow(number: 1, text: "Switch to the Voice Type keyboard (or tap 🎤) and start talking. Recording starts on its own when the keyboard opens; you can turn that off in Settings.")
                 StepRow(number: 2, text: "If no session is on, Voice Type flashes open, turns on the microphone, starts recording and jumps straight back. Just keep talking. (If it doesn't jump back, tap ◀ in the top-left; it's already recording.)")
                 StepRow(number: 3, text: "Tap 🎤 again when you're done. The text is typed at the cursor.")
             } header: {

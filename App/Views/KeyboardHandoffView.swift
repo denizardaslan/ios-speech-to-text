@@ -46,6 +46,14 @@ struct KeyboardHandoffView: View {
                         .font(.callout)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
+                    if let report = controller.lastJumpBackReport, controller.settingsAutoReturn {
+                        // Diagnostics: which jump-back routes were tried and what happened.
+                        Text(report)
+                            .font(.caption2.monospaced())
+                            .foregroundStyle(.tertiary)
+                            .multilineTextAlignment(.center)
+                            .textSelection(.enabled)
+                    }
                 }
 
                 Spacer()
