@@ -7,7 +7,8 @@ import UIKit
 ///   - The keyboard tells the app "start / stop" via Darwin notifications.
 ///   - The app writes the text to the App Group folder and says "result ready".
 ///   - The keyboard types the text at the cursor with `textDocumentProxy.insertText`.
-/// If the app is not running (no session), the keyboard opens it via `sesliyaz://session`.
+/// If the app is not running (no session), the keyboard opens it via `sesliyaz://session?record=1`:
+/// the app turns on the mic, starts recording and jumps straight back here.
 final class KeyboardViewController: UIInputViewController {
     private let model = KeyboardModel()
     private var tokens: [ObservationToken] = []
@@ -79,7 +80,7 @@ final class KeyboardViewController: UIInputViewController {
         model.onReturn = { [weak self] in self?.textDocumentProxy.insertText("\n") }
         model.onDelete = { [weak self] in self?.textDocumentProxy.deleteBackward() }
         model.onNextKeyboard = { [weak self] in self?.advanceToNextInputMode() }
-        model.onOpenApp = { [weak self] in self?.openContainingApp() }
+        model.onOpenApp = { [weak self] in self?.openContainingApp(startRecording: false) }
     }
 
     private func micTapped() {
@@ -110,7 +111,8 @@ final class KeyboardViewController: UIInputViewController {
             guard let self else { return }
             self.pendingCommand = nil
             self.model.engineState = .off
-            if openAppIfNoReply { self.openContainingApp() }
+            // Only a start command should start recording in the app; a lost stop must not.
+            if openAppIfNoReply { self.openContainingApp(startRecording: message == .startRecording) }
         }
         watchdog = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6, execute: work)
@@ -138,7 +140,7 @@ final class KeyboardViewController: UIInputViewController {
         pendingCommand = nil
         // The app is running but the session is off (e.g. it timed out): go to the app to turn on the microphone.
         if command == .startRecording, snapshot.engineState == .off {
-            openContainingApp()
+            openContainingApp(startRecording: true)
         } else {
             model.needsSessionHint = false
         }
@@ -169,9 +171,9 @@ final class KeyboardViewController: UIInputViewController {
 
     /// Keyboard extensions cannot use `UIApplication.shared.open`. We find UIApplication in the
     /// responder chain and call openURL through the Objective-C runtime.
-    private func openContainingApp() {
+    private func openContainingApp(startRecording: Bool) {
         model.needsSessionHint = true
-        let url = AppConfig.sessionURL as NSURL
+        let url = AppConfig.sessionURL(startRecording: startRecording) as NSURL
         let selector = NSSelectorFromString("openURL:options:completionHandler:")
 
         var responder: UIResponder? = self

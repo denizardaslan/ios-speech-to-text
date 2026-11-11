@@ -71,7 +71,7 @@ struct KeyboardView: View {
 
     private var statusText: String {
         if let error = model.errorMessage { return error }
-        if model.needsSessionHint { return "Opening Voice Type… then come back with ◀ in the top-left." }
+        if model.needsSessionHint { return "Turning on the mic… start talking when you're back." }
         switch model.engineState {
         case .off: return "Tap 🎤 to dictate"
         case .ready: return "Ready: tap to speak"

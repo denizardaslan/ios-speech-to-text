@@ -50,6 +50,7 @@ final class AppSettings: ObservableObject {
         static let language = "language"
         static let sessionTimeout = "sessionTimeoutMinutes"
         static let autoCopy = "autoCopy"
+        static let autoReturn = "autoReturn"
     }
 
     private let defaults = UserDefaults.standard
@@ -83,6 +84,11 @@ final class AppSettings: ObservableObject {
         didSet { defaults.set(autoCopy, forKey: Keys.autoCopy) }
     }
 
+    /// When the keyboard opens the app, jump straight back to the previous app once recording has started.
+    @Published var autoReturn: Bool {
+        didSet { defaults.set(autoReturn, forKey: Keys.autoReturn) }
+    }
+
     var hasAPIKey: Bool { !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
     private init() {
@@ -93,6 +99,7 @@ final class AppSettings: ObservableObject {
         let timeout = defaults.integer(forKey: Keys.sessionTimeout)
         sessionTimeoutMinutes = timeout > 0 ? timeout : 5
         autoCopy = defaults.object(forKey: Keys.autoCopy) as? Bool ?? true
+        autoReturn = defaults.object(forKey: Keys.autoReturn) as? Bool ?? true
     }
 
     /// Creates a transcriber with the saved settings. Shortcuts (in the background) use this too.

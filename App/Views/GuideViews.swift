@@ -17,9 +17,9 @@ struct KeyboardGuideView: View {
             }
 
             Section {
-                StepRow(number: 1, text: "Tap 🎤 on the Voice Type keyboard.")
-                StepRow(number: 2, text: "If no session is on, Voice Type opens briefly and gets the microphone ready. Go back with ◀ in the top-left.")
-                StepRow(number: 3, text: "Tap 🎤, speak, tap again. The text is typed at the cursor.")
+                StepRow(number: 1, text: "Tap 🎤 on the Voice Type keyboard and start talking.")
+                StepRow(number: 2, text: "If no session is on, Voice Type flashes open, turns on the microphone, starts recording and jumps straight back. Just keep talking. (If it doesn't jump back, tap ◀ in the top-left; it's already recording.)")
+                StepRow(number: 3, text: "Tap 🎤 again when you're done. The text is typed at the cursor.")
             } header: {
                 Text("Usage")
             } footer: {

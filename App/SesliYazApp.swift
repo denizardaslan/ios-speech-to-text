@@ -5,6 +5,7 @@ struct SesliYazApp: App {
     @StateObject private var settings = AppSettings.shared
     @StateObject private var controller = DictationController.shared
     @StateObject private var history = HistoryStore.shared
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
@@ -13,9 +14,14 @@ struct SesliYazApp: App {
                 .environmentObject(controller)
                 .environmentObject(history)
                 .onOpenURL { url in
-                    // The keyboard opens "sesliyaz://session" when no session is active.
+                    // The keyboard opens "sesliyaz://session[?record=1]" when no session is active.
                     guard url.scheme == AppConfig.urlScheme, url.host == "session" else { return }
-                    Task { await controller.startSession() }
+                    let record = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                        .queryItems?.contains { $0.name == "record" && $0.value == "1" } ?? false
+                    Task { await controller.handleKeyboardLaunch(startRecording: record) }
+                }
+                .onChange(of: scenePhase) { _, phase in
+                    if phase == .background { controller.appDidEnterBackground() }
                 }
         }
     }
@@ -35,6 +41,12 @@ struct RootView: View {
         }
         .fullScreenCover(isPresented: $controller.quickDictationVisible) {
             QuickDictationView()
+        }
+        .overlay {
+            if controller.keyboardHandoffVisible {
+                KeyboardHandoffView()
+                    .transition(.opacity)
+            }
         }
     }
 }

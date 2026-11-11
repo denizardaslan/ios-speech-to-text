@@ -60,10 +60,11 @@ struct SettingsView: View {
                 Stepper(value: $settings.sessionTimeoutMinutes, in: 1...60) {
                     LabeledContent("Auto-Off After", value: "\(settings.sessionTimeoutMinutes) min")
                 }
+                Toggle("Jump Back Automatically", isOn: $settings.autoReturn)
             } header: {
                 Text("Keyboard Session")
             } footer: {
-                Text("If the keyboard session is unused for this long, the microphone is turned off. The next 🎤 tap briefly opens the app again.")
+                Text("If the keyboard session is unused for this long, the microphone is turned off. The next 🎤 tap briefly opens the app, starts recording and (with Jump Back on) returns you to the app you were typing in, so you can just keep talking.")
             }
         }
         .navigationTitle("Settings")

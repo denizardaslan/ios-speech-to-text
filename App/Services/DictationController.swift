@@ -27,6 +27,10 @@ final class DictationController: ObservableObject {
     @Published var quickDictationVisible = false
     /// Whether the last result was copied to the clipboard (for the badge in the UI).
     @Published private(set) var copiedToClipboard = false
+    /// The keyboard opened the app; shows a minimal "listening" screen until we jump back.
+    @Published var keyboardHandoffVisible = false
+    /// Jumping back automatically did not work (or is off): the user has to tap ◀.
+    @Published private(set) var needsManualReturn = false
 
     private let recorder = AudioRecorder()
     private let settings = AppSettings.shared
@@ -103,6 +107,42 @@ final class DictationController: ObservableObject {
             publish(.off)
         }
         level = 0
+    }
+
+    // MARK: - Opened from the keyboard
+
+    /// The keyboard opened `sesliyaz://session` because no session was running.
+    /// Turn on the mic, start recording right away (if asked), then jump back to the app
+    /// the user was typing in, so they can just keep talking. One tap instead of three.
+    func handleKeyboardLaunch(startRecording shouldRecord: Bool) async {
+        needsManualReturn = false
+        // No key yet: let the onboarding screen show instead.
+        guard settings.hasAPIKey else { return }
+        keyboardHandoffVisible = true
+
+        await startSession()
+        guard sessionActive else { return } // the error is shown on the handoff screen
+
+        if shouldRecord {
+            await startRecording(origin: .keyboard)
+            guard state == .recording else { return }
+        }
+
+        guard settings.autoReturn else {
+            needsManualReturn = true
+            return
+        }
+        // Give the audio session a moment to settle in the foreground before we leave.
+        try? await Task.sleep(nanoseconds: 250_000_000)
+        if !PreviousAppNavigator.returnToPreviousApp() {
+            needsManualReturn = true
+        }
+    }
+
+    /// Called when the app goes to the background: the handoff screen is no longer needed.
+    func appDidEnterBackground() {
+        keyboardHandoffVisible = false
+        needsManualReturn = false
     }
 
     // MARK: - Recording

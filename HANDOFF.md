@@ -68,7 +68,8 @@ Double back tap ─► Shortcut: [Record Audio] ─► [Voice Type › Transcrib
 ### Key iOS constraints and workarounds
 1. **Keyboard extensions cannot use the microphone** (Apple rule). Workaround: the Wispr Flow model.
    - The keyboard opens the app via `sesliyaz://session`. Extensions have no `UIApplication.shared`; we find `UIApplication` in the responder chain and call `openURL:options:completionHandler:` through the ObjC runtime (`KeyboardViewController.openContainingApp`). Not an official API, so there is **App Store review risk**; fine for personal use.
-   - The app starts `AVAudioEngine` and stays alive in the background thanks to `UIBackgroundModes: audio` (orange mic dot visible). The user returns with the ◀ breadcrumb.
+   - The app starts `AVAudioEngine` and stays alive in the background thanks to `UIBackgroundModes: audio` (orange mic dot visible).
+   - **One-tap flow (2026-11-11):** the keyboard opens `sesliyaz://session?record=1`; `DictationController.handleKeyboardLaunch` starts the session, starts recording (origin `.keyboard`) and then calls `PreviousAppNavigator.returnToPreviousApp()`. That uses the **private** `UIApplication._systemNavigationAction` (`UISystemNavigationAction`, `sendResponseForDestination:`), the object behind the "◀ App" breadcrumb, with runtime checks. If it fails or Settings › "Jump Back Automatically" is off, `KeyboardHandoffView` tells the user to tap ◀ (recording keeps running). **Untested on device. Verify on iOS 26.** A lost `stopRecording` reopens the app *without* `record=1`.
    - Later 🎤 taps reach the app via Darwin notifications; the app only writes to a file between start and stop.
    - The session ends after the idle timeout (5 min by default, configurable).
 2. **Apps cannot type into another app's text field** → the Back Tap route copies to the clipboard.
@@ -127,7 +128,7 @@ Keyboard/KeyboardView.swift         SwiftUI keyboard: 🎤, space, delete (repea
 
 ## 4. Next steps (in priority order)
 
-1. **On-device test:** keyboard session flow (opening the app, returning with ◀, recording, inserting), Back Tap shortcut, session timeout, interruption by a call.
+1. **On-device test:** keyboard session flow (one-tap: app flashes open → recording starts → jumps back automatically; then 🎤 to stop and insert), Back Tap shortcut, session timeout, interruption by a call.
 2. **TestFlight automation** (§5).
 3. Roadmap (also in the README): on-device model (WhisperKit / Apple SpeechAnalyzer), custom vocabulary (`custom_vocabulary` for the Transcribe model), tone options, live preview.
 

@@ -10,7 +10,10 @@ enum AppConfig {
     static let urlScheme = "sesliyaz"
 
     /// The URL the keyboard opens to launch the main app and start an audio session.
-    static let sessionURL = URL(string: "\(urlScheme)://session")!
+    /// With `startRecording`, the app also starts recording right away (for the keyboard).
+    static func sessionURL(startRecording: Bool) -> URL {
+        URL(string: "\(urlScheme)://session\(startRecording ? "?record=1" : "")")!
+    }
 
     static var sharedContainerURL: URL? {
         FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupID)

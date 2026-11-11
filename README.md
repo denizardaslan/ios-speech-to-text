@@ -72,8 +72,8 @@ These steps are also explained in the app's **Setup** section.
 ### Why doesn't the keyboard record by itself?
 Apple **does not allow** keyboard extensions to use the microphone. So:
 
-1. On the first 🎤 tap, the keyboard opens the main app via `sesliyaz://session`.
-2. The app turns on the microphone (`UIBackgroundModes: audio`) so it keeps running in the background. You go back with **◀** in the top-left.
+1. On the first 🎤 tap, the keyboard opens the main app via `sesliyaz://session?record=1`.
+2. The app turns on the microphone (`UIBackgroundModes: audio`) so it keeps running in the background, **starts recording right away**, and **jumps back** to the app you were typing in (`PreviousAppNavigator`, which follows the system "◀ WhatsApp" breadcrumb through a private API). You just keep talking and tap 🎤 when done. If jumping back fails, or is turned off in Settings, you tap **◀** yourself; recording is already running.
 3. From then on, 🎤 taps reach the app via Darwin notifications. The app records, sends the audio to Gemini, and writes the result to the App Group folder. The keyboard types it at the cursor with `textDocumentProxy.insertText`.
 4. If the session goes unused for the time set in Settings (5 min by default), the microphone turns off.
 
