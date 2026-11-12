@@ -1,7 +1,7 @@
 # HANDOFF — Voice Type (ios-speech-to-text)
 
 This file is for the next agent/developer picking up the project.
-Last updated: 2026-11-08
+Last updated: 2026-11-12
 
 ---
 
@@ -14,7 +14,7 @@ There are two routes, and both stay. The user picks whichever is handier at the 
 
 | Route | Flow | Result |
 |---|---|---|
-| **Keyboard extension** | Voice Type keyboard → 🎤 → speak → 🎤 | Text is **typed at the cursor** via `textDocumentProxy.insertText` |
+| **Keyboard extension** | Voice Type keyboard → (app opens, swipe back) → speak → 🎤 | Text is **typed at the cursor** via `textDocumentProxy.insertText` |
 | **Back Tap** | Double tap → Shortcut: *Record Audio* → *Transcribe Audio* (App Intent) | Text is **copied to the clipboard**; the user pastes |
 
 **User preferences and decisions:**
@@ -22,6 +22,7 @@ There are two routes, and both stay. The user picks whichever is handier at the 
 - The user has an Apple Developer account (Team ID `Y4NCFKA5A4`).
 - **The app is in English**: UI, comments, docs. The user-facing name is **Voice Type** (`APP_DISPLAY_NAME` in `project.yml`). Internal identifiers keep the original name `SesliYaz` / `sesliyaz` (targets, bundle IDs, URL scheme, App Group, Keychain service) so the installed app updates in place and the saved key survives. Don't rename them without asking.
 - The user chats in Turkish.
+- The user does **not** want the microphone indicator (Dynamic Island) lingering after a dictation, so the default session length is "Off after each dictation" (see §3).
 - **Goal:** manage everything from the phone (Claude Code) and ship to the phone via TestFlight (see §5).
 
 ---
@@ -32,7 +33,7 @@ There are two routes, and both stay. The user picks whichever is handier at the 
 |---|---|
 | Code (app + keyboard + intents + UI) | ✅ On `main`, pushed to GitHub |
 | Build | ✅ Builds on the Mac with Xcode 26.5 (automatic signing, App Group present in both targets' signatures) |
-| On-device test | 🟡 iPhone 14 Pro: in-app dictation works with `gemini-3.5-transcribe` (~3 s). Keyboard and Back Tap not tested yet. |
+| On-device test | 🟡 iPhone 14 Pro: in-app dictation works with `gemini-3.5-transcribe` (~3 s). The 2026-11-12 rework (swipe-back flow, new UI, retry, undo) was written without a compiler and has **not been built or run yet**. |
 | TestFlight / CI | ❌ Not started (plan in §5) |
 
 Build and install from the Mac:
@@ -59,7 +60,7 @@ Double back tap ─► Shortcut: [Record Audio] ─► [Voice Type › Transcrib
 │ AppSettings          model/style/language; API key in Keychain   │
 └──────▲──────────────────────────────────────┬────────────────────┘
        │ Darwin notifications                 │ App Group folder:
-       │ (ping/start/stop/cancel/endSession)  │ state.json, result.json, consumed.json
+       │ (ping/start/stop/cancel/retry/end)   │ state.json, result.json, consumed.json
 ┌──────┴──────── SesliYazKeyboard (keyboard extension) ▼───────────┐
 │ 🎤 → send command (0.6 s watchdog) · resultReady → insertText     │
 └──────────────────────────────────────────────────────────────────┘
@@ -68,21 +69,24 @@ Double back tap ─► Shortcut: [Record Audio] ─► [Voice Type › Transcrib
 ### Key iOS constraints and workarounds
 1. **Keyboard extensions cannot use the microphone** (Apple rule). Workaround: the Wispr Flow model.
    - The keyboard opens the app via `sesliyaz://session`. Extensions have no `UIApplication.shared`; we find `UIApplication` in the responder chain and call `openURL:options:completionHandler:` through the ObjC runtime (`KeyboardViewController.openContainingApp`). Not an official API, so there is **App Store review risk**; fine for personal use.
-   - The app starts `AVAudioEngine` and stays alive in the background thanks to `UIBackgroundModes: audio` (orange mic dot visible).
-   - **Update 2026-11-12:** the breadcrumb route did **not** work on the user's iPhone. The keyboard now detects the host app's bundle ID (`Keyboard/HostAppDetector.swift`: `_hostBundleID`, then iOS 16+ `PKService` personalities → `NSXPCConnection._xpcConnection` → `xpc_connection_copy_bundle_id`) and sends it as `&host=`. `PreviousAppNavigator` then tries, in order: the host's known URL scheme (`whatsapp://` etc., public API), `LSApplicationWorkspace openApplicationWithBundleID:` (private), and the breadcrumb. Each attempt is written to `lastJumpBackReport`, shown on the handoff screen and in Settings ("Last Jump Back"). **Ask the user for that line if it still fails.**
-   - **Auto-start (2026-11-12):** with Settings › "Start Recording When Keyboard Opens" (default on, stored in the App Group as `KeyboardPreferences`), `viewDidAppear` sends `startRecording` without a 🎤 tap. The app ignores it if it is already recording.
-   - **One-tap flow (2026-11-11):** the keyboard opens `sesliyaz://session?record=1`; `DictationController.handleKeyboardLaunch` starts the session, starts recording (origin `.keyboard`) and then calls `PreviousAppNavigator.returnToPreviousApp()`. That uses the **private** `UIApplication._systemNavigationAction` (`UISystemNavigationAction`, `sendResponseForDestination:`), the object behind the "◀ App" breadcrumb, with runtime checks. If it fails or Settings › "Jump Back Automatically" is off, `KeyboardHandoffView` tells the user to tap ◀ (recording keeps running). **Untested on device. Verify on iOS 26.** A lost `stopRecording` reopens the app *without* `record=1`.
-   - Later 🎤 taps reach the app via Darwin notifications; the app only writes to a file between start and stop.
-   - The session ends after the idle timeout (5 min by default, configurable).
+   - The app starts `AVAudioEngine` and stays alive in the background thanks to `UIBackgroundModes: audio`. While the microphone is on, iOS shows its indicator (Dynamic Island / orange dot). That cannot be hidden.
+   - **No automatic return (decided 2026-11-12).** There is no public API to send the user back to the previous app, and since iOS 26.4 the private routes to find the host app are closed (Wispr Flow, Superwhisper and Raycast hit the same wall; Apple DTS confirms there is no supported way, FB22247647). The earlier attempts (`PreviousAppNavigator`, `HostAppDetector`, the `host=` URL parameter, "Jump Back Automatically") were **removed**. Don't bring them back unless Apple ships an API.
+   - **Flow now (same as Wispr Flow):** the keyboard opens `sesliyaz://session?record=1`; `DictationController.handleKeyboardLaunch` turns on the mic and starts recording (origin `.keyboard`); `KeyboardHandoffView` shows "Listening…" and an animated "Swipe right to go back" hint. The user swipes along the home indicator, keeps talking, and taps the mic on the keyboard to finish.
+   - **Session length** (`SessionDuration` in `AppSettings`, picker in Settings and on the main screen): `afterDictation` (default: the mic goes off the moment recording stops, before transcription, so the indicator disappears at once; every dictation goes through the app), 1/5/15/60 min, or `never`. With a longer session the keyboard starts recording via Darwin notifications without leaving the host app.
+   - **Auto-start:** with Settings › "Start Recording When Keyboard Opens" (default on, stored in the App Group as `KeyboardPreferences`), `viewDidAppear` sends `startRecording` without a tap. Guards in `KeyboardViewController` (static, per extension process): no auto-start within 10 s of a dictation, and no automatic app launch within 20 s of the previous one, so a failure in the app cannot cause a bounce loop.
+   - The "Start Keyboard Session" App Intent (Action Button / Back Tap) turns the mic on ahead of time and shows the same handoff screen.
 2. **Apps cannot type into another app's text field** → the Back Tap route copies to the clipboard.
 3. **The app cannot start the microphone from the background** → keyboard commands are only accepted while `sessionActive`. Otherwise the app publishes `.off` and the keyboard opens the app.
 4. The shortcut's "Record Audio" output (m4a) is converted to WAV with `AudioFileConverter` before sending.
 
 ### IPC protocol (`Shared/IPC.swift`, `Shared/SharedStore.swift`)
 - Notification names: `<APP_GROUP_ID>.ipc.<message>`
-- Keyboard → app: `ping`, `startRecording`, `stopRecording`, `cancelRecording`, `endSession`
+- Keyboard → app: `ping`, `startRecording`, `stopRecording`, `cancelRecording`, `retryTranscription`, `endSession`
 - App → keyboard: `stateChanged` (also sent in reply to every command, acting as a "pong"), `resultReady`
 - The keyboard sends a command. If no `stateChanged` arrives within 0.6 s, the app is not running and the keyboard opens it. If the app is running but the state is `.off` (on a start command), it also opens the app.
+- `state.json` (`SharedSnapshot`) also carries `lastError`, `canRetry` and `recordingStartedAt` (timer on the keyboard).
+- If a transcription fails for a retryable reason, the app keeps the audio in memory (`failedAudio`) and offers "Try Again" (app) / "Retry" (keyboard). It is dropped when a new recording starts. If the app was suspended meanwhile, the keyboard says to open the app.
+- The keyboard remembers the last inserted text and offers "Undo" (deletes it if it is still right before the cursor).
 - `consumedResultID` prevents duplicate inserts. Results older than 120 s are not inserted.
 - The keyboard needs **Full Access** to reach the App Group (`RequestsOpenAccess: true`).
 
@@ -103,7 +107,8 @@ scripts/bootstrap.sh                Mac: install xcodegen → set TEAM_ID → ge
 Shared/AppConfig.swift              App Group (from SesliYazAppGroup in Info.plist), URL scheme
 Shared/IPC.swift                    DarwinNotifier + ObservationToken
 Shared/SharedStore.swift            App Group JSON files
-App/SesliYazApp.swift               @main, onOpenURL(sesliyaz://session) → startSession
+Shared/Theme.swift                  Colors/gradients, MicOrb, WaveformBars, PulseRing (app + keyboard)
+App/SesliYazApp.swift               @main, onOpenURL(sesliyaz://session) → handleKeyboardLaunch
 App/Audio/AudioRecorder.swift       AVAudioEngine recording, interruptions/route changes, AudioFileConverter
 App/Services/DictationController.swift  State machine (off/ready/recording/transcribing)
 App/Services/GeminiTranscriber.swift    REST client + prompt + error mapping (429, 401/403)
@@ -111,10 +116,12 @@ App/Services/AppSettings.swift      Settings + makeTranscriber() (used by intent
 App/Services/KeychainStore.swift    AfterFirstUnlockThisDeviceOnly
 App/Services/HistoryStore.swift     Last 100 transcriptions
 App/Intents/Intents.swift           TranscribeAudioIntent, DictateIntent, StartKeyboardSessionIntent, AppShortcuts
+App/Views/Components.swift          Card style, button styles, MicButton, StepRow
+App/Views/KeyboardHandoffView.swift "Listening… swipe right to go back" screen
 App/Views/*                         Onboarding (API key), Main, Settings, History, Guides
 App/Assets.xcassets                 AppIcon (1024, generated with plain Python), AccentColor
-Keyboard/KeyboardViewController.swift   IPC, watchdog, insertText, opening the app
-Keyboard/KeyboardView.swift         SwiftUI keyboard: 🎤, space, delete (repeating), return, 🌐
+Keyboard/KeyboardViewController.swift   IPC, watchdog, auto-start guards, insertText, undo, opening the app
+Keyboard/KeyboardView.swift         SwiftUI keyboard: mic orb + timer, Cancel/Undo/Retry/power pills, space, delete (repeating), return, 🌐
 ```
 
 ### Build settings (`project.yml`)
@@ -130,7 +137,7 @@ Keyboard/KeyboardView.swift         SwiftUI keyboard: 🎤, space, delete (repea
 
 ## 4. Next steps (in priority order)
 
-1. **On-device test:** keyboard session flow (one-tap: app flashes open → recording starts → jumps back automatically; then 🎤 to stop and insert), Back Tap shortcut, session timeout, interruption by a call.
+1. **Build and on-device test** of the 2026-11-12 rework: fix any compile errors first (it was written on Linux without a Swift toolchain). Then check: keyboard opens the app → recording starts → swipe back → mic on the keyboard stops and inserts; the indicator disappears right after stopping with "Off after each dictation"; a longer session listens without leaving the app; auto-start guards; Retry and Undo; Back Tap shortcut; interruption by a call.
 2. **TestFlight automation** (§5).
 3. Roadmap (also in the README): on-device model (WhisperKit / Apple SpeechAnalyzer), custom vocabulary (`custom_vocabulary` for the Transcribe model), tone options, live preview.
 
@@ -162,6 +169,6 @@ Claude Code (phone) → git push → GitHub Actions (macOS runner)
 ---
 
 ## 6. Working notes
-- Commits end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. No model names in commits, code or PRs otherwise.
+- Commits end with `Co-Authored-By: Claude <noreply@anthropic.com>`. No model names in commits, code or PRs.
 - Git identity: `denizardaslan <aardaslan@gmail.com>`
 - Don't open PRs unless the user explicitly asks.

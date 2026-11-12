@@ -75,7 +75,7 @@ final class AudioRecorder {
         }
     }
 
-    // MARK: - Motor
+    // MARK: - Engine
 
     func startEngine() throws {
         guard !isRunning else { return }
@@ -117,7 +117,7 @@ final class AudioRecorder {
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
-    // MARK: - Dosya
+    // MARK: - File
 
     func beginFile() throws {
         let url = FileManager.default.temporaryDirectory
@@ -179,7 +179,7 @@ final class AudioRecorder {
         var sum: Float = 0
         for i in 0..<count { sum += samples[i] * samples[i] }
         let rms = (sum / Float(count)).squareRoot()
-        // Kabaca dB → 0…1
+        // Roughly dB → 0…1
         let db = 20 * log10(max(rms, 0.000_01))
         let level = max(0, min(1, (db + 50) / 50))
         DispatchQueue.main.async { onLevel(level) }

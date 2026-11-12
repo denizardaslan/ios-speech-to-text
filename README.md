@@ -7,7 +7,7 @@ There are two ways to use it; pick whichever is handier at the moment:
 
 | Route | How | Result |
 |---|---|---|
-| **Keyboard** | Switch to the Voice Type keyboard → 🎤 → speak → 🎤 | Text is **typed at the cursor** |
+| **Keyboard** | Switch to the Voice Type keyboard → speak → tap the mic | Text is **typed at the cursor** |
 | **Back Tap** | Double-tap the back of the phone → speak → tap | Text is **copied to the clipboard** → paste |
 
 ---
@@ -72,12 +72,16 @@ These steps are also explained in the app's **Setup** section.
 ### Why doesn't the keyboard record by itself?
 Apple **does not allow** keyboard extensions to use the microphone. So:
 
-1. As soon as you switch to the Voice Type keyboard (or tap 🎤), it asks the app to record. If no session is running, it opens the main app via `sesliyaz://session?record=1&host=<bundle ID of the app you're typing in>`.
-2. The app turns on the microphone (`UIBackgroundModes: audio`) so it keeps running in the background, **starts recording right away**, and **jumps back** to the app you were typing in (`PreviousAppNavigator`: the host's URL scheme such as `whatsapp://`, then private fallbacks). You just keep talking and tap 🎤 when done. If jumping back fails, or is turned off in Settings, you tap **◀** yourself; recording is already running. Settings shows what the last jump back tried.
-3. From then on, 🎤 taps reach the app via Darwin notifications. The app records, sends the audio to Gemini, and writes the result to the App Group folder. The keyboard types it at the cursor with `textDocumentProxy.insertText`.
-4. If the session goes unused for the time set in Settings (5 min by default), the microphone turns off.
+1. As soon as you switch to the Voice Type keyboard (or tap the mic), it asks the app to record. If the app's microphone is off, the keyboard opens the app via `sesliyaz://session?record=1`.
+2. The app turns on the microphone (`UIBackgroundModes: audio`) and **starts recording right away**. iOS has no way for an app to send you back to the previous app, so the screen asks you to **swipe right along the bar at the bottom**. You can talk the whole time; tap the mic on the keyboard when you are done.
+3. The app sends the audio to Gemini and writes the result to the App Group folder. The keyboard types it at the cursor with `textDocumentProxy.insertText`. **Undo** removes it again; **Retry** resends the audio if the request failed.
+4. What happens next depends on **Settings › Keep Microphone On**:
+   - *Off after each dictation* (default): the microphone turns off the moment you stop. No indicator lingers, but the next dictation opens the app again.
+   - *1 minute … 1 hour / Until I turn it off*: the microphone stays ready, and the keyboard starts recording instantly through Darwin notifications, without leaving your app.
 
-While a session is on, the **orange dot** at the top of the screen shows the microphone is on. Audio is only written to a file and sent between 🎤 and stop; nothing else is stored anywhere.
+While the microphone is on, iOS shows its **microphone indicator** (Dynamic Island or the orange dot). No app can hide it. Audio is only written to a file and sent between start and stop; nothing else is stored anywhere.
+
+Tip: the **Start Keyboard Session** shortcut action (bind it to the Action Button) turns the microphone on before you start typing.
 
 ### Why does Back Tap copy to the clipboard?
 iOS does not let an app type directly into another app's text field. Only a keyboard can do that.
@@ -94,6 +98,7 @@ Shared/                           Code shared by the app and the keyboard
   AppConfig.swift                 App Group, URL scheme
   IPC.swift                       Darwin notifications (cross-process signals)
   SharedStore.swift               JSON state/result files in the App Group
+  Theme.swift                     Colors and the mic orb, shared by both UIs
 App/
   SesliYazApp.swift               Entry point, handles sesliyaz://session
   Audio/AudioRecorder.swift       AVAudioEngine recording + file converter
@@ -118,4 +123,5 @@ Keyboard/
 - [ ] Custom vocabulary (names, terms) → `custom_vocabulary` for the Transcribe model
 - [ ] Tone options ("formal email", "short message")
 - [ ] Live preview while recording (streaming)
+- There is no automatic return to the app you were typing in: iOS offers no API for it, and since iOS 26.4 the private workarounds are closed. Other dictation keyboards (Wispr Flow, Superwhisper) ask you to swipe back too.
 - The way the keyboard opens the app (responder chain) is not an official Apple API. Fine for personal use, but it may cause trouble in App Store review.

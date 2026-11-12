@@ -2,53 +2,45 @@ import SwiftUI
 
 /// First launch: paste the Gemini API key once, validate it, save it.
 struct OnboardingView: View {
-    @EnvironmentObject private var settings: AppSettings
-
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Image(systemName: "waveform.circle.fill")
-                            .font(.system(size: 56))
-                            .foregroundStyle(.tint)
-                        Text("Welcome to Voice Type")
-                            .font(.largeTitle.bold())
-                        Text("Speak, and your words are typed wherever you want. To get started you need a free Google Gemini API key.")
-                            .foregroundStyle(.secondary)
+        ScrollView {
+            VStack(spacing: 24) {
+                VStack(spacing: 14) {
+                    ZStack {
+                        Circle()
+                            .fill(Theme.violet.opacity(0.14))
+                            .frame(width: 148, height: 148)
+                        MicOrb(state: .off, size: 96)
                     }
-
-                    VStack(alignment: .leading, spacing: 12) {
-                        StepRow(number: 1, text: "Sign in to Google AI Studio with your Google account using the link below.")
-                        Link(destination: URL(string: "https://aistudio.google.com/apikey")!) {
-                            Label("aistudio.google.com/apikey", systemImage: "arrow.up.right.square")
-                        }
-                        .padding(.leading, 36)
-                        StepRow(number: 2, text: "Tap \"Create API key\" to create a key and copy it.")
-                        StepRow(number: 3, text: "Paste it here. The key is stored encrypted in the iOS Keychain, only on this phone.")
-                    }
-
-                    APIKeyForm()
+                    Text("Voice Type")
+                        .font(.largeTitle.bold())
+                    Text("Speak, and your words are typed in any app. Punctuated, cleaned up, in your language.")
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
                 }
-                .padding(24)
+                .padding(.top, 28)
+
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Add your free Gemini API key")
+                        .font(.headline)
+                    StepRow(number: 1, text: "Open Google AI Studio and sign in with your Google account.")
+                    Link(destination: URL(string: "https://aistudio.google.com/apikey")!) {
+                        Label("aistudio.google.com/apikey", systemImage: "arrow.up.right.square.fill")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .padding(.leading, 36)
+                    StepRow(number: 2, text: "Tap \"Create API key\" and copy the key.")
+                    StepRow(number: 3, text: "Paste it below. It is stored in the iOS Keychain, only on this phone.")
+                }
+                .card()
+
+                APIKeyForm()
             }
-            .navigationBarTitleDisplayMode(.inline)
+            .padding(.horizontal, 20)
+            .padding(.bottom, 32)
         }
-    }
-}
-
-struct StepRow: View {
-    let number: Int
-    let text: String
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Text("\(number)")
-                .font(.subheadline.bold())
-                .frame(width: 24, height: 24)
-                .background(Circle().fill(Color.accentColor.opacity(0.15)))
-            Text(text)
-        }
+        .background(Color(.systemGroupedBackground).ignoresSafeArea())
     }
 }
 
@@ -80,27 +72,31 @@ struct APIKeyForm: View {
                 }
                 .accessibilityLabel("Paste from clipboard")
             }
-            .padding(12)
-            .background(RoundedRectangle(cornerRadius: 12).fill(Color(.secondarySystemBackground)))
+            .padding(14)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Color(.secondarySystemGroupedBackground))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+            )
 
             if let errorMessage {
                 Text(errorMessage)
                     .font(.footnote)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(Theme.red)
             }
 
             Button {
                 Task { await save() }
             } label: {
-                HStack {
+                HStack(spacing: 8) {
                     if isChecking { ProgressView().tint(.white) }
                     Text(isChecking ? "Checking…" : "Save and Validate")
-                        .bold()
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 6)
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(PrimaryButtonStyle())
             .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isChecking)
         }
     }

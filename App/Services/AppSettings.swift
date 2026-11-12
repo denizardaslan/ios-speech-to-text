@@ -37,6 +37,41 @@ enum DictationLanguage: String, CaseIterable, Identifiable {
     }
 }
 
+/// How long the microphone stays on in the background for the keyboard.
+/// iOS shows its microphone indicator (Dynamic Island / orange dot) for as long as it is on.
+enum SessionDuration: Int, CaseIterable, Identifiable {
+    /// Turn the microphone off as soon as a dictation ends. No lingering indicator,
+    /// but every dictation goes through the app once.
+    case afterDictation = 0
+    case oneMinute = 1
+    case fiveMinutes = 5
+    case fifteenMinutes = 15
+    case oneHour = 60
+    case never = -1
+
+    var id: Int { rawValue }
+
+    var title: String {
+        switch self {
+        case .afterDictation: return "Off after each dictation"
+        case .oneMinute: return "1 minute"
+        case .fiveMinutes: return "5 minutes"
+        case .fifteenMinutes: return "15 minutes"
+        case .oneHour: return "1 hour"
+        case .never: return "Until I turn it off"
+        }
+    }
+
+    /// How long an unused session stays on. `nil` means it never turns itself off.
+    var idleInterval: TimeInterval? {
+        switch self {
+        case .afterDictation: return 60 // a session that was opened but never used
+        case .never: return nil
+        default: return TimeInterval(rawValue * 60)
+        }
+    }
+}
+
 /// User settings. The API key lives in the Keychain, everything else in UserDefaults.
 final class AppSettings: ObservableObject {
     static let shared = AppSettings()
@@ -48,9 +83,8 @@ final class AppSettings: ObservableObject {
         static let model = "model"
         static let style = "style"
         static let language = "language"
-        static let sessionTimeout = "sessionTimeoutMinutes"
+        static let sessionDuration = "sessionDuration"
         static let autoCopy = "autoCopy"
-        static let autoReturn = "autoReturn"
     }
 
     private let defaults = UserDefaults.standard
@@ -74,19 +108,14 @@ final class AppSettings: ObservableObject {
         didSet { defaults.set(language.rawValue, forKey: Keys.language) }
     }
 
-    /// The microphone is turned off after the keyboard session is unused for this many minutes.
-    @Published var sessionTimeoutMinutes: Int {
-        didSet { defaults.set(sessionTimeoutMinutes, forKey: Keys.sessionTimeout) }
+    /// How long the microphone stays on in the background after the keyboard turned it on.
+    @Published var sessionDuration: SessionDuration {
+        didSet { defaults.set(sessionDuration.rawValue, forKey: Keys.sessionDuration) }
     }
 
     /// Automatically copy the result of in-app dictation to the clipboard.
     @Published var autoCopy: Bool {
         didSet { defaults.set(autoCopy, forKey: Keys.autoCopy) }
-    }
-
-    /// When the keyboard opens the app, jump straight back to the previous app once recording has started.
-    @Published var autoReturn: Bool {
-        didSet { defaults.set(autoReturn, forKey: Keys.autoReturn) }
     }
 
     /// Start recording as soon as the Voice Type keyboard appears. Stored in the App Group so the keyboard can read it.
@@ -101,10 +130,9 @@ final class AppSettings: ObservableObject {
         model = defaults.string(forKey: Keys.model) ?? Self.defaultModel
         style = TranscriptionStyle(rawValue: defaults.string(forKey: Keys.style) ?? "") ?? .clean
         language = DictationLanguage(rawValue: defaults.string(forKey: Keys.language) ?? "") ?? .auto
-        let timeout = defaults.integer(forKey: Keys.sessionTimeout)
-        sessionTimeoutMinutes = timeout > 0 ? timeout : 5
+        sessionDuration = (defaults.object(forKey: Keys.sessionDuration) as? Int)
+            .flatMap(SessionDuration.init(rawValue:)) ?? .afterDictation
         autoCopy = defaults.object(forKey: Keys.autoCopy) as? Bool ?? true
-        autoReturn = defaults.object(forKey: Keys.autoReturn) as? Bool ?? true
         autoStartOnKeyboardOpen = SharedStore.keyboardPreferences.autoStartOnOpen
     }
 

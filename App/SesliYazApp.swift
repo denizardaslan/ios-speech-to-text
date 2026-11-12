@@ -18,8 +18,7 @@ struct SesliYazApp: App {
                     guard url.scheme == AppConfig.urlScheme, url.host == "session" else { return }
                     let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
                     let record = items.contains { $0.name == "record" && $0.value == "1" }
-                    let host = items.first { $0.name == "host" }?.value
-                    Task { await controller.handleKeyboardLaunch(startRecording: record, hostBundleID: host) }
+                    Task { await controller.handleKeyboardLaunch(startRecording: record) }
                 }
                 .onChange(of: scenePhase) { _, phase in
                     if phase == .background { controller.appDidEnterBackground() }
@@ -49,5 +48,7 @@ struct RootView: View {
                     .transition(.opacity)
             }
         }
+        .animation(.easeInOut(duration: 0.2), value: controller.keyboardHandoffVisible)
+        .tint(Theme.violet)
     }
 }

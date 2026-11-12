@@ -5,17 +5,31 @@ final class KeyboardModel: ObservableObject {
     @Published var hasFullAccess = true
     @Published var showsGlobeKey = true
     @Published var errorMessage: String?
-    @Published var needsSessionHint = false
+    /// We just sent the user to the app to turn on the microphone.
+    @Published var openingApp = false
+    @Published var canRetry = false
+    @Published var canUndo = false
+    @Published var recordingStartedAt: Date?
     @Published var returnKeyTitle = "return"
 
     var onMic: () -> Void = {}
     var onCancel: () -> Void = {}
+    var onRetry: () -> Void = {}
+    var onUndo: () -> Void = {}
     var onEndSession: () -> Void = {}
     var onSpace: () -> Void = {}
     var onReturn: () -> Void = {}
     var onDelete: () -> Void = {}
     var onNextKeyboard: () -> Void = {}
-    var onOpenApp: () -> Void = {}
+
+    /// Takes over the state the app published.
+    func apply(_ snapshot: SharedSnapshot) {
+        engineState = snapshot.engineState
+        errorMessage = snapshot.lastError
+        canRetry = snapshot.canRetry ?? false
+        recordingStartedAt = snapshot.engineState == .recording ? snapshot.recordingStartedAt : nil
+        if snapshot.engineState == .recording { canUndo = false }
+    }
 }
 
 struct KeyboardView: View {
@@ -24,7 +38,7 @@ struct KeyboardView: View {
     @ObservedObject var model: KeyboardModel
 
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 6) {
             topBar
             Spacer(minLength: 0)
             if model.hasFullAccess {
@@ -46,35 +60,58 @@ struct KeyboardView: View {
     private var topBar: some View {
         HStack(spacing: 8) {
             Circle()
-                .fill(model.engineState == .off ? Color.gray.opacity(0.5) : Color.green)
+                .fill(statusColor)
                 .frame(width: 7, height: 7)
             Text(statusText)
-                .font(.footnote)
-                .foregroundStyle(model.errorMessage == nil ? Color.secondary : Color.red)
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(model.errorMessage == nil ? Color.secondary : Theme.red)
                 .lineLimit(2)
                 .minimumScaleFactor(0.8)
-            Spacer()
-            if model.engineState == .recording {
-                Button("Cancel", action: model.onCancel)
-                    .font(.footnote.bold())
-            } else if model.engineState == .ready {
-                Button(action: model.onEndSession) {
-                    Image(systemName: "power")
+            Spacer(minLength: 4)
+            trailingAction
+        }
+        .padding(.horizontal, 10)
+        .frame(minHeight: 32)
+    }
+
+    @ViewBuilder
+    private var trailingAction: some View {
+        switch model.engineState {
+        case .recording:
+            PillButton(title: "Cancel", systemImage: "xmark", action: model.onCancel)
+        case .transcribing:
+            EmptyView()
+        case .off, .ready:
+            HStack(spacing: 6) {
+                if model.canRetry {
+                    PillButton(title: "Retry", systemImage: "arrow.clockwise", action: model.onRetry)
+                } else if model.canUndo {
+                    PillButton(title: "Undo", systemImage: "arrow.uturn.backward", action: model.onUndo)
                 }
-                .font(.footnote.bold())
-                .accessibilityLabel("End session")
+                if model.engineState == .ready {
+                    PillButton(title: nil, systemImage: "power", action: model.onEndSession)
+                        .accessibilityLabel("Turn off the microphone")
+                }
             }
         }
-        .padding(.horizontal, 8)
-        .frame(minHeight: 32)
+    }
+
+    private var statusColor: Color {
+        if model.errorMessage != nil { return Theme.red }
+        switch model.engineState {
+        case .off: return Color.gray.opacity(0.5)
+        case .ready: return .green
+        case .recording: return Theme.red
+        case .transcribing: return Theme.orange
+        }
     }
 
     private var statusText: String {
         if let error = model.errorMessage { return error }
-        if model.needsSessionHint { return "Turning on the mic… just start talking." }
+        if model.openingApp, model.engineState == .off { return "Opening Voice Type… swipe back and talk." }
         switch model.engineState {
-        case .off: return "Tap 🎤 to dictate"
-        case .ready: return "Ready: tap to speak"
+        case .off: return "Tap to dictate"
+        case .ready: return "Ready. Tap to speak"
         case .recording: return "Listening… tap to finish"
         case .transcribing: return "Transcribing…"
         }
@@ -83,43 +120,34 @@ struct KeyboardView: View {
     // MARK: - Microphone
 
     private var micArea: some View {
-        Button(action: model.onMic) {
-            ZStack {
-                if model.engineState == .recording {
-                    PulseRing()
-                }
-                Circle()
-                    .fill(micColor)
-                    .frame(width: 84, height: 84)
-                    .shadow(color: micColor.opacity(0.35), radius: 6, y: 3)
-                if model.engineState == .transcribing {
-                    ProgressView().tint(.white).scaleEffect(1.3)
+        VStack(spacing: 2) {
+            Button(action: model.onMic) {
+                MicOrb(state: model.engineState, size: 82)
+                    .frame(width: 200, height: 112)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(PressScaleStyle())
+            .disabled(model.engineState == .transcribing)
+            .accessibilityLabel(model.engineState == .recording ? "Stop recording" : "Start speaking")
+
+            // Keeps its height so the orb does not jump when the timer appears.
+            Group {
+                if let start = model.recordingStartedAt {
+                    Text(start, style: .timer)
                 } else {
-                    Image(systemName: model.engineState == .recording ? "stop.fill" : "mic.fill")
-                        .font(.system(size: 32, weight: .semibold))
-                        .foregroundStyle(.white)
+                    Text(" ")
                 }
             }
-            .frame(width: 130, height: 120)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .disabled(model.engineState == .transcribing)
-        .accessibilityLabel(model.engineState == .recording ? "Stop recording" : "Start speaking")
-    }
-
-    private var micColor: Color {
-        switch model.engineState {
-        case .off, .ready: return .accentColor
-        case .recording: return .red
-        case .transcribing: return .orange
+            .font(.caption.monospacedDigit().weight(.medium))
+            .foregroundStyle(.secondary)
         }
     }
 
     private var fullAccessNotice: some View {
         VStack(spacing: 6) {
-            Image(systemName: "lock.open")
+            Image(systemName: "lock.open.fill")
                 .font(.title2)
+                .foregroundStyle(Theme.brand)
             Text("Full Access required")
                 .font(.headline)
             Text("Settings › General › Keyboard › Keyboards › Voice Type › Allow Full Access")
@@ -148,6 +176,39 @@ struct KeyboardView: View {
     }
 }
 
+// MARK: - Small controls
+
+/// A compact capsule button for the top bar (Cancel, Undo, Retry, power).
+private struct PillButton: View {
+    let title: String?
+    let systemImage: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Image(systemName: systemImage)
+                if let title { Text(title) }
+            }
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.primary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Capsule().fill(Color.primary.opacity(0.1)))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// Shrinks the mic slightly while it is pressed.
+private struct PressScaleStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.93 : 1)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+    }
+}
+
 // MARK: - Keys
 
 private struct KeyBackground: View {
@@ -155,7 +216,7 @@ private struct KeyBackground: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        RoundedRectangle(cornerRadius: 6)
+        RoundedRectangle(cornerRadius: 8, style: .continuous)
             .fill(isPrimary
                   ? (colorScheme == .dark ? Color(white: 0.42) : Color.white)
                   : (colorScheme == .dark ? Color(white: 0.28) : Color(white: 0.68)))
@@ -221,23 +282,5 @@ private struct RepeatingKeyButton: View {
         .accessibilityAddTraits(.isButton)
         .accessibilityLabel("Delete")
         .accessibilityAction { action() }
-    }
-}
-
-/// A ring that pulses around the mic while recording.
-private struct PulseRing: View {
-    @State private var animate = false
-
-    var body: some View {
-        Circle()
-            .stroke(Color.red.opacity(0.5), lineWidth: 3)
-            .frame(width: 84, height: 84)
-            .scaleEffect(animate ? 1.4 : 1)
-            .opacity(animate ? 0 : 1)
-            .onAppear {
-                withAnimation(.easeOut(duration: 1).repeatForever(autoreverses: false)) {
-                    animate = true
-                }
-            }
     }
 }

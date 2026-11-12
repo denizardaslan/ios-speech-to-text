@@ -23,25 +23,22 @@ final class DictationController: ObservableObject {
     @Published private(set) var level: Float = 0
     @Published private(set) var lastText = ""
     @Published private(set) var lastError: String?
+    /// The last transcription failed but its audio was kept, so it can be sent again.
+    @Published private(set) var canRetry = false
+    @Published private(set) var recordingStartedAt: Date?
     /// Full-screen recording view when opened by the "Dictate" shortcut.
     @Published var quickDictationVisible = false
     /// Whether the last result was copied to the clipboard (for the badge in the UI).
     @Published private(set) var copiedToClipboard = false
-    /// The keyboard opened the app; shows a minimal "listening" screen until we jump back.
+    /// The keyboard opened the app: show the "listening, swipe back" screen.
     @Published var keyboardHandoffVisible = false
-    /// Jumping back automatically did not work (or is off): the user has to tap ◀.
-    @Published private(set) var needsManualReturn = false
-    /// What happened on the last automatic jump back (shown on the handoff screen and in Settings).
-    @Published private(set) var lastJumpBackReport: String? = UserDefaults.standard.string(forKey: "lastJumpBackReport") {
-        didSet { UserDefaults.standard.set(lastJumpBackReport, forKey: "lastJumpBackReport") }
-    }
 
     private let recorder = AudioRecorder()
     private let settings = AppSettings.shared
     private let history = HistoryStore.shared
 
     private var origin: RecordingOrigin = .app
-    private var recordingStartedAt: Date?
+    private var failedAudio: (url: URL, origin: RecordingOrigin)?
     private var idleTimer: Timer?
     private var maxDurationTimer: Timer?
     private var tokens: [ObservationToken] = []
@@ -55,6 +52,8 @@ final class DictationController: ObservableObject {
             guard let self else { return }
             self.lastError = message
             self.sessionActive = false
+            self.recordingStartedAt = nil
+            self.level = 0
             self.cancelTimers()
             self.publish(.off)
         }
@@ -70,7 +69,8 @@ final class DictationController: ObservableObject {
             ipc.observe(.ping) { [weak self] in self?.publishCurrentState() },
             ipc.observe(.startRecording) { [weak self] in
                 guard let self else { return }
-                // Without a session the app cannot turn on the mic in the background; the keyboard will open the app.
+                // iOS does not let an app turn on the mic from the background, so without a
+                // session we only report "off" and the keyboard opens the app.
                 guard self.sessionActive else {
                     self.lastError = nil
                     return self.publishCurrentState()
@@ -79,6 +79,7 @@ final class DictationController: ObservableObject {
             },
             ipc.observe(.stopRecording) { [weak self] in self?.stopRecording() },
             ipc.observe(.cancelRecording) { [weak self] in self?.cancelRecording() },
+            ipc.observe(.retryTranscription) { [weak self] in self?.retryTranscription() },
             ipc.observe(.endSession) { [weak self] in self?.endSession() },
         ]
     }
@@ -106,51 +107,29 @@ final class DictationController: ObservableObject {
         if state == .recording { cancelRecording() }
         sessionActive = false
         cancelTimers()
-        if state != .transcribing {
-            recorder.stopEngine()
-            publish(.off)
-        }
+        recorder.stopEngine()
         level = 0
+        if state != .transcribing { publish(.off) }
     }
 
     // MARK: - Opened from the keyboard
 
-    /// The keyboard opened `sesliyaz://session` because no session was running.
-    /// Turn on the mic, start recording right away (if asked), then jump back to the app
-    /// the user was typing in, so they can just keep talking. One tap instead of three.
-    func handleKeyboardLaunch(startRecording shouldRecord: Bool, hostBundleID: String?) async {
-        needsManualReturn = false
+    /// The keyboard opened `sesliyaz://session` because the microphone was off.
+    /// Turn it on and start recording right away; the handoff screen tells the user to
+    /// swipe back to the app they were typing in. They can talk the whole time.
+    func handleKeyboardLaunch(startRecording shouldRecord: Bool) async {
         // No key yet: let the onboarding screen show instead.
         guard settings.hasAPIKey else { return }
         keyboardHandoffVisible = true
 
         await startSession()
-        guard sessionActive else { return } // the error is shown on the handoff screen
-
-        if shouldRecord {
-            await startRecording(origin: .keyboard)
-            guard state == .recording else { return }
-        }
-
-        guard settings.autoReturn else {
-            needsManualReturn = true
-            return
-        }
-        // Give the audio session a moment to settle in the foreground before we leave.
-        try? await Task.sleep(nanoseconds: 250_000_000)
-        let (success, report) = await PreviousAppNavigator.returnToPreviousApp(hostBundleID: hostBundleID)
-        lastJumpBackReport = report
-        if !success {
-            needsManualReturn = true
-        }
+        guard sessionActive, shouldRecord else { return } // an error is shown on the handoff screen
+        await startRecording(origin: .keyboard)
     }
-
-    var settingsAutoReturn: Bool { settings.autoReturn }
 
     /// Called when the app goes to the background: the handoff screen is no longer needed.
     func appDidEnterBackground() {
         keyboardHandoffVisible = false
-        needsManualReturn = false
     }
 
     // MARK: - Recording
@@ -167,6 +146,7 @@ final class DictationController: ObservableObject {
         guard state != .recording, state != .transcribing else { return publishCurrentState() }
         lastError = nil
         copiedToClipboard = false
+        discardFailedAudio()
 
         guard settings.hasAPIKey else {
             fail(TranscriptionError.missingAPIKey)
@@ -206,8 +186,9 @@ final class DictationController: ObservableObject {
         maxDurationTimer?.invalidate()
 
         let duration = Date().timeIntervalSince(recordingStartedAt ?? Date())
+        recordingStartedAt = nil
         let fileURL = recorder.endFile()
-        if !sessionActive { recorder.stopEngine(); level = 0 }
+        releaseMicrophoneIfDone()
 
         guard let fileURL, duration >= 0.4 else {
             if let fileURL { try? FileManager.default.removeItem(at: fileURL) }
@@ -215,35 +196,83 @@ final class DictationController: ObservableObject {
             return
         }
 
-        publish(.transcribing)
-        let origin = self.origin
         log.notice("Recording finished: \(duration, format: .fixed(precision: 1)) s, starting transcription")
-
-        Task {
-            // Don't let the transcription be cut off while the app is in the background.
-            let bgTask = UIApplication.shared.beginBackgroundTask(withName: "transcribe")
-            defer {
-                try? FileManager.default.removeItem(at: fileURL)
-                UIApplication.shared.endBackgroundTask(bgTask)
-            }
-            do {
-                let transcriber = try AppSettings.makeTranscriber()
-                let text = try await transcriber.transcribe(audioURL: fileURL, mimeType: "audio/wav")
-                deliver(text, to: origin)
-            } catch {
-                log.error("Transcription failed: \(String(describing: error), privacy: .public)")
-                lastError = error.localizedDescription
-            }
-            finishCycle()
-        }
+        transcribe(fileURL, for: origin)
     }
 
     func cancelRecording() {
         guard state == .recording else { return publishCurrentState() }
         maxDurationTimer?.invalidate()
+        recordingStartedAt = nil
         if let url = recorder.endFile() { try? FileManager.default.removeItem(at: url) }
-        if !sessionActive { recorder.stopEngine(); level = 0 }
+        releaseMicrophoneIfDone()
         finishCycle()
+    }
+
+    /// The microphone goes off the moment recording ends when there is no session to keep,
+    /// or when the session is set to end after each dictation. That also makes the system's
+    /// microphone indicator disappear right away instead of after the transcription.
+    private func releaseMicrophoneIfDone() {
+        if sessionActive, origin == .keyboard, settings.sessionDuration == .afterDictation {
+            sessionActive = false
+            idleTimer?.invalidate()
+        }
+        if !sessionActive {
+            recorder.stopEngine()
+            level = 0
+        }
+    }
+
+    // MARK: - Transcription
+
+    private func transcribe(_ fileURL: URL, for origin: RecordingOrigin) {
+        publish(.transcribing)
+        // Don't let the request be cut off while the app is in the background.
+        let backgroundTask = UIApplication.shared.beginBackgroundTask(withName: "transcribe")
+        Task {
+            do {
+                let transcriber = try AppSettings.makeTranscriber()
+                let text = try await transcriber.transcribe(audioURL: fileURL, mimeType: "audio/wav")
+                try? FileManager.default.removeItem(at: fileURL)
+                deliver(text, to: origin)
+            } catch {
+                log.error("Transcription failed: \(String(describing: error), privacy: .public)")
+                lastError = error.localizedDescription
+                if Self.isWorthRetrying(error) {
+                    failedAudio = (fileURL, origin)
+                    canRetry = true
+                } else {
+                    try? FileManager.default.removeItem(at: fileURL)
+                }
+            }
+            finishCycle()
+            UIApplication.shared.endBackgroundTask(backgroundTask)
+        }
+    }
+
+    /// Sends the audio of the last failed transcription again (network hiccup, quota, timeout…).
+    func retryTranscription() {
+        guard state != .recording, state != .transcribing, let failed = failedAudio else {
+            return publishCurrentState()
+        }
+        failedAudio = nil
+        canRetry = false
+        lastError = nil
+        transcribe(failed.url, for: failed.origin)
+    }
+
+    private func discardFailedAudio() {
+        if let failed = failedAudio { try? FileManager.default.removeItem(at: failed.url) }
+        failedAudio = nil
+        canRetry = false
+    }
+
+    private static func isWorthRetrying(_ error: Error) -> Bool {
+        guard let error = error as? TranscriptionError else { return true }
+        switch error {
+        case .emptyResult, .audioTooShort, .missingAPIKey, .invalidAPIKey: return false
+        default: return true
+        }
     }
 
     // MARK: - "Dictate" shortcut
@@ -274,12 +303,17 @@ final class DictationController: ObservableObject {
     // MARK: - State
 
     private func finishCycle() {
-        recordingStartedAt = nil
         if sessionActive {
-            if !recorder.isRunning { sessionActive = false }
-            scheduleIdleTimeout()
+            if recorder.isRunning {
+                scheduleIdleTimeout()
+            } else {
+                sessionActive = false
+            }
         }
-        if !sessionActive, recorder.isRunning { recorder.stopEngine(); level = 0 }
+        if !sessionActive, recorder.isRunning {
+            recorder.stopEngine()
+            level = 0
+        }
         publish(sessionActive ? .ready : .off)
     }
 
@@ -293,16 +327,24 @@ final class DictationController: ObservableObject {
     /// Publishes the state to both the UI and the keyboard (App Group + Darwin notification).
     private func publish(_ newState: EngineState) {
         state = newState
-        SharedStore.state = SharedSnapshot(engineState: newState, lastError: lastError, updatedAt: Date())
+        SharedStore.state = SharedSnapshot(
+            engineState: newState,
+            lastError: lastError,
+            canRetry: canRetry,
+            recordingStartedAt: recordingStartedAt,
+            updatedAt: Date()
+        )
         DarwinNotifier.shared.post(.stateChanged)
     }
 
     // MARK: - Timers
 
-    /// Turn off the microphone if the session goes unused for a while (battery and privacy).
+    /// Turn off the microphone if the session goes unused for a while (battery, privacy,
+    /// and the microphone indicator at the top of the screen).
     private func scheduleIdleTimeout() {
         idleTimer?.invalidate()
-        let interval = TimeInterval(max(1, settings.sessionTimeoutMinutes) * 60)
+        idleTimer = nil
+        guard let interval = settings.sessionDuration.idleInterval else { return }
         idleTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: false) { [weak self] _ in
             Task { @MainActor in
                 guard let self, self.state == .ready else { return }

@@ -1,57 +1,49 @@
 import SwiftUI
 
 struct MainView: View {
-    @EnvironmentObject private var controller: DictationController
     @EnvironmentObject private var history: HistoryStore
 
     var body: some View {
         NavigationStack {
-            List {
-                Section {
+            ScrollView {
+                VStack(spacing: 22) {
                     DictationPanel()
-                        .listRowInsets(EdgeInsets())
-                        .listRowBackground(Color.clear)
-                }
 
-                Section {
-                    SessionRow()
-                } header: {
-                    Text("Keyboard Session")
-                } footer: {
-                    Text("While the session is on, the microphone waits in the background (an orange dot shows at the top of the screen) and 🎤 on the Voice Type keyboard listens instantly. It turns itself off if unused for the time you set.")
-                }
-
-                Section("Setup") {
-                    NavigationLink {
-                        KeyboardGuideView()
-                    } label: {
-                        Label("Enable the Keyboard", systemImage: "keyboard")
+                    VStack(spacing: 8) {
+                        SectionTitle("Keyboard")
+                        SessionCard()
                     }
-                    NavigationLink {
-                        BackTapGuideView()
-                    } label: {
-                        Label("Double Back Tap", systemImage: "hand.tap")
-                    }
-                }
 
-                if !history.items.isEmpty {
-                    Section {
-                        ForEach(history.items.prefix(3)) { item in
-                            HistoryRow(item: item)
+                    VStack(spacing: 8) {
+                        SectionTitle("Setup")
+                        HStack(spacing: 12) {
+                            GuideTile(title: "Keyboard", subtitle: "Type by voice in any app", systemImage: "keyboard") {
+                                KeyboardGuideView()
+                            }
+                            GuideTile(title: "Back Tap", subtitle: "Dictate to the clipboard", systemImage: "hand.tap.fill") {
+                                BackTapGuideView()
+                            }
                         }
-                        NavigationLink("All History") { HistoryView() }
-                    } header: {
-                        Text("Recent")
+                    }
+
+                    if !history.items.isEmpty {
+                        VStack(spacing: 8) {
+                            SectionTitle("Recent")
+                            RecentCard()
+                        }
                     }
                 }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 32)
             }
+            .background(Color(.systemGroupedBackground).ignoresSafeArea())
             .navigationTitle("Voice Type")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     NavigationLink {
                         SettingsView()
                     } label: {
-                        Image(systemName: "gearshape")
+                        Image(systemName: "gearshape.fill")
                     }
                     .accessibilityLabel("Settings")
                 }
@@ -60,58 +52,38 @@ struct MainView: View {
     }
 }
 
-/// In-app dictation: a big mic button plus the result.
+// MARK: - Dictation
+
+/// In-app dictation: the big mic orb plus the result.
 struct DictationPanel: View {
     @EnvironmentObject private var controller: DictationController
 
     var body: some View {
-        VStack(spacing: 16) {
-            MicButton(state: controller.state, level: controller.level, size: 96) {
+        VStack(spacing: 10) {
+            MicButton(state: controller.state, level: controller.level, size: 104) {
                 controller.toggleRecording(origin: .app)
             }
-            .padding(.top, 12)
 
             Text(statusText)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .font(.title3.weight(.semibold))
 
-            if let error = controller.lastError {
-                Text(error)
-                    .font(.footnote)
-                    .foregroundStyle(.red)
-                    .multilineTextAlignment(.center)
+            if controller.state == .recording {
+                RecordingTimer(start: controller.recordingStartedAt)
+            } else {
+                Text("Dictate here, or use the keyboard in any app.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
 
+            ErrorBanner()
+
             if !controller.lastText.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(controller.lastText)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    HStack {
-                        if controller.copiedToClipboard {
-                            Label("Copied to clipboard", systemImage: "checkmark.circle.fill")
-                                .font(.caption)
-                                .foregroundStyle(.green)
-                        }
-                        Spacer()
-                        Button {
-                            UIPasteboard.general.string = controller.lastText
-                        } label: {
-                            Label("Copy", systemImage: "doc.on.doc")
-                                .font(.caption)
-                        }
-                        ShareLink(item: controller.lastText) {
-                            Label("Share", systemImage: "square.and.arrow.up")
-                                .font(.caption)
-                        }
-                    }
-                }
-                .padding()
-                .background(RoundedRectangle(cornerRadius: 14).fill(Color(.secondarySystemGroupedBackground)))
+                ResultCard()
+                    .padding(.top, 8)
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.bottom, 8)
+        .padding(.top, 4)
     }
 
     private var statusText: String {
@@ -123,85 +95,192 @@ struct DictationPanel: View {
     }
 }
 
-struct SessionRow: View {
+/// The last error, with a retry button when the audio is still available.
+struct ErrorBanner: View {
     @EnvironmentObject private var controller: DictationController
 
     var body: some View {
-        HStack {
-            Circle()
-                .fill(controller.sessionActive ? Color.green : Color.gray.opacity(0.4))
-                .frame(width: 10, height: 10)
-            Text(controller.sessionActive ? "On: you can go back to the keyboard" : "Off")
-            Spacer()
-            Button(controller.sessionActive ? "Stop" : "Start") {
-                if controller.sessionActive {
-                    controller.endSession()
-                } else {
-                    Task { await controller.startSession() }
+        if let error = controller.lastError {
+            VStack(spacing: 10) {
+                Label(error, systemImage: "exclamationmark.triangle.fill")
+                    .font(.footnote)
+                    .foregroundStyle(Theme.red)
+                    .multilineTextAlignment(.leading)
+                if controller.canRetry {
+                    Button {
+                        controller.retryTranscription()
+                    } label: {
+                        Label("Try Again", systemImage: "arrow.clockwise")
+                    }
+                    .buttonStyle(ChipButtonStyle(tint: Theme.red))
                 }
             }
-            .buttonStyle(.bordered)
-            .tint(controller.sessionActive ? Color.red : Color.accentColor)
-        }
-        if controller.sessionActive {
-            Label("Use ◀ in the top-left corner to go back to the app you were typing in, then tap 🎤.", systemImage: "arrow.uturn.backward")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
+            .padding(14)
+            .frame(maxWidth: .infinity)
+            .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Theme.red.opacity(0.1)))
+            .padding(.top, 6)
         }
     }
 }
 
-/// Round mic button whose color and icon follow the engine state.
-struct MicButton: View {
-    let state: EngineState
-    let level: Float
-    var size: CGFloat = 80
-    let action: () -> Void
+/// The most recent transcription with copy and share actions.
+struct ResultCard: View {
+    @EnvironmentObject private var controller: DictationController
+    @State private var justCopied = false
 
     var body: some View {
-        Button(action: action) {
-            ZStack {
-                if state == .recording {
-                    Circle()
-                        .fill(Color.red.opacity(0.25))
-                        .frame(width: size, height: size)
-                        .scaleEffect(1 + CGFloat(level) * 0.6)
-                        .animation(.easeOut(duration: 0.1), value: level)
+        VStack(alignment: .leading, spacing: 14) {
+            Text(controller.lastText)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            HStack(spacing: 8) {
+                Button {
+                    UIPasteboard.general.string = controller.lastText
+                    justCopied = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { justCopied = false }
+                } label: {
+                    Label(copyTitle, systemImage: copied ? "checkmark" : "doc.on.doc")
                 }
-                Circle()
-                    .fill(color)
-                    .frame(width: size, height: size)
-                    .shadow(color: color.opacity(0.4), radius: 8, y: 4)
-                if state == .transcribing {
-                    ProgressView().tint(.white).scaleEffect(1.4)
-                } else {
-                    Image(systemName: state == .recording ? "stop.fill" : "mic.fill")
-                        .font(.system(size: size * 0.38, weight: .semibold))
-                        .foregroundStyle(.white)
+                .buttonStyle(ChipButtonStyle(tint: copied ? .green : Theme.violet))
+
+                ShareLink(item: controller.lastText) {
+                    Label("Share", systemImage: "square.and.arrow.up")
                 }
+                .buttonStyle(ChipButtonStyle())
+
+                Spacer()
             }
-            .frame(width: size * 1.6, height: size * 1.6)
         }
-        .buttonStyle(.plain)
-        .disabled(state == .transcribing)
-        .accessibilityLabel(state == .recording ? "Stop recording" : "Start speaking")
+        .card()
     }
 
-    private var color: Color {
-        switch state {
-        case .off, .ready: return .accentColor
-        case .recording: return .red
-        case .transcribing: return .orange
+    private var copied: Bool { justCopied || controller.copiedToClipboard }
+    private var copyTitle: String { copied ? "Copied" : "Copy" }
+}
+
+// MARK: - Keyboard session
+
+/// Shows whether the microphone is waiting in the background for the keyboard, and toggles it.
+struct SessionCard: View {
+    @EnvironmentObject private var controller: DictationController
+    @EnvironmentObject private var settings: AppSettings
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                Circle()
+                    .fill(controller.sessionActive ? Color.green : Color.gray.opacity(0.35))
+                    .frame(width: 10, height: 10)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(controller.sessionActive ? "Microphone is ready" : "Microphone is off")
+                        .font(.headline)
+                    Text(detail)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 8)
+                Button(controller.sessionActive ? "Turn Off" : "Turn On") {
+                    if controller.sessionActive {
+                        controller.endSession()
+                    } else {
+                        Task { await controller.startSession() }
+                    }
+                }
+                .buttonStyle(ChipButtonStyle(tint: controller.sessionActive ? Theme.red : Theme.violet))
+            }
+
+            Divider()
+
+            HStack {
+                Label("Keep it on", systemImage: "timer")
+                    .font(.subheadline)
+                Spacer()
+                Picker("Keep it on", selection: $settings.sessionDuration) {
+                    ForEach(SessionDuration.allCases) { Text($0.title).tag($0) }
+                }
+                .labelsHidden()
+                .tint(Color.secondary)
+            }
         }
+        .card()
+    }
+
+    private var detail: String {
+        if controller.sessionActive {
+            return "Swipe back to your app. The Voice Type keyboard listens instantly."
+        }
+        return "The keyboard turns it on when you dictate. Turn it on here to skip that step."
     }
 }
+
+// MARK: - Setup tiles
+
+struct GuideTile<Destination: View>: View {
+    let title: String
+    let subtitle: String
+    let systemImage: String
+    @ViewBuilder let destination: () -> Destination
+
+    var body: some View {
+        NavigationLink {
+            destination()
+        } label: {
+            VStack(alignment: .leading, spacing: 10) {
+                IconTile(systemImage: systemImage)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.headline)
+                        .foregroundStyle(Color.primary)
+                    Text(subtitle)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.leading)
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: 104, alignment: .topLeading)
+            .card(padding: 16)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Recent
+
+struct RecentCard: View {
+    @EnvironmentObject private var history: HistoryStore
+
+    var body: some View {
+        VStack(spacing: 12) {
+            ForEach(history.items.prefix(3)) { item in
+                HistoryRow(item: item)
+                Divider()
+            }
+            NavigationLink {
+                HistoryView()
+            } label: {
+                HStack {
+                    Text("All History")
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.footnote.weight(.semibold))
+                }
+                .font(.subheadline.weight(.medium))
+            }
+        }
+        .card()
+    }
+}
+
+// MARK: - "Dictate" shortcut
 
 /// Full-screen recording view opened by the "Dictate" shortcut.
 struct QuickDictationView: View {
     @EnvironmentObject private var controller: DictationController
 
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 14) {
             HStack {
                 Spacer()
                 Button {
@@ -210,40 +289,49 @@ struct QuickDictationView: View {
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .font(.title)
+                        .symbolRenderingMode(.hierarchical)
                         .foregroundStyle(.secondary)
                 }
+                .accessibilityLabel("Close")
             }
+
             Spacer()
-            MicButton(state: controller.state, level: controller.level, size: 120) {
+
+            MicButton(state: controller.state, level: controller.level, size: 124) {
                 controller.toggleRecording(origin: .app)
             }
-            Group {
-                switch controller.state {
-                case .recording: Text("Listening… tap to finish")
-                case .transcribing: Text("Transcribing…")
-                case .off, .ready:
-                    if controller.copiedToClipboard {
-                        Label("Copied to clipboard. Use ◀ in the top-left to go back and paste.", systemImage: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
-                    } else {
-                        Text("Tap to speak")
-                    }
-                }
-            }
-            .font(.headline)
-            .multilineTextAlignment(.center)
 
-            if let error = controller.lastError {
-                Text(error).font(.footnote).foregroundStyle(.red).multilineTextAlignment(.center)
+            Text(title)
+                .font(.title2.weight(.semibold))
+                .multilineTextAlignment(.center)
+
+            if controller.state == .recording {
+                RecordingTimer(start: controller.recordingStartedAt)
+            } else if controller.copiedToClipboard, controller.state != .transcribing {
+                Text("Go back to your app and paste.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
+
+            ErrorBanner()
+
             if !controller.lastText.isEmpty, controller.state != .recording {
-                Text(controller.lastText)
-                    .padding()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(RoundedRectangle(cornerRadius: 14).fill(Color(.secondarySystemBackground)))
+                ResultCard()
+                    .padding(.top, 8)
             }
+
+            Spacer()
             Spacer()
         }
         .padding(24)
+        .background(Color(.systemGroupedBackground).ignoresSafeArea())
+    }
+
+    private var title: String {
+        switch controller.state {
+        case .recording: return "Listening… tap to finish"
+        case .transcribing: return "Transcribing…"
+        case .off, .ready: return controller.copiedToClipboard ? "Copied to clipboard" : "Tap to speak"
+        }
     }
 }

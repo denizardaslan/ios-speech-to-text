@@ -111,7 +111,8 @@ struct StartKeyboardSessionIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult {
-        await DictationController.shared.startSession()
+        // Same screen as when the keyboard opens the app: microphone on, "swipe back".
+        await DictationController.shared.handleKeyboardLaunch(startRecording: false)
         return .result()
     }
 }

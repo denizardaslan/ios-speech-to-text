@@ -15,6 +15,10 @@ enum EngineState: String, Codable {
 struct SharedSnapshot: Codable, Equatable {
     var engineState: EngineState = .off
     var lastError: String?
+    /// The last transcription failed and its audio is still around, so it can be sent again.
+    var canRetry: Bool?
+    /// When the current recording started (for the timer on the keyboard).
+    var recordingStartedAt: Date?
     var updatedAt: Date = .distantPast
 }
 
@@ -25,14 +29,14 @@ struct KeyboardResult: Codable, Equatable {
     var createdAt: Date
 }
 
-/// Cross-process state sharing via small JSON files in the App Group folder.
-/// (The keyboard needs "Full Access" to reach the App Group.)
 /// Keyboard behaviour the user sets in the app (the keyboard can only read the App Group).
 struct KeyboardPreferences: Codable, Equatable {
     /// Start recording as soon as the Voice Type keyboard appears, without tapping 🎤.
     var autoStartOnOpen = true
 }
 
+/// Cross-process state sharing via small JSON files in the App Group folder.
+/// (The keyboard needs "Full Access" to reach the App Group.)
 enum SharedStore {
     private static let preferencesFile = "keyboard-preferences.json"
     private static let stateFile = "state.json"

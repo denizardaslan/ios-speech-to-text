@@ -9,6 +9,7 @@ enum IPCMessage: String, CaseIterable {
     case startRecording
     case stopRecording
     case cancelRecording
+    case retryTranscription
     case endSession
 
     // App → Keyboard

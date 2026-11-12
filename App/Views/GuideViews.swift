@@ -17,13 +17,20 @@ struct KeyboardGuideView: View {
             }
 
             Section {
-                StepRow(number: 1, text: "Switch to the Voice Type keyboard (or tap 🎤) and start talking. Recording starts on its own when the keyboard opens; you can turn that off in Settings.")
-                StepRow(number: 2, text: "If no session is on, Voice Type flashes open, turns on the microphone, starts recording and jumps straight back. Just keep talking. (If it doesn't jump back, tap ◀ in the top-left; it's already recording.)")
-                StepRow(number: 3, text: "Tap 🎤 again when you're done. The text is typed at the cursor.")
+                StepRow(number: 1, text: "Switch to the Voice Type keyboard. It starts listening on its own; you can turn that off in Settings and tap the mic instead.")
+                StepRow(number: 2, text: "If the microphone is off, Voice Type opens and starts recording right away. Swipe right along the bar at the bottom of the screen to go back to your app. You can talk the whole time.")
+                StepRow(number: 3, text: "Tap the mic when you're done. The text is typed at the cursor. \"Undo\" on the keyboard removes it again.")
             } header: {
                 Text("Usage")
             } footer: {
-                Text("Apple does not let keyboards use the microphone directly, so the Voice Type app records in the background. As long as the session stays on, you don't need to go back to the app.")
+                Text("Apple does not let keyboards use the microphone, and does not let apps send you back to the previous app, so the Voice Type app records and you swipe back.\n\nTo skip that trip, choose a longer \"Keep Microphone On\" time in Settings: while the microphone is on, the keyboard listens instantly. iOS shows its microphone indicator during that time.")
+            }
+
+            Section {
+                StepRow(number: 1, text: "In the Shortcuts app, create a shortcut with the \"Voice Type › Start Keyboard Session\" action.")
+                StepRow(number: 2, text: "Bind it to the Action Button or Back Tap to turn the microphone on before you start typing.")
+            } header: {
+                Text("Tip: turn the microphone on ahead of time")
             }
         }
         .navigationTitle("Keyboard")
